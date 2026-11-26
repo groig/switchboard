@@ -42,6 +42,17 @@ defmodule Switchboard.WriteToolsTest do
     "notify_me" => {%{"text" => "CI passed"}, nil}
   }
 
+  # Writes that only affect the caller (Switchboard's own watches): no upstream write, no
+  # "confirm first" text, but the same read-only mode, kill switches and own-credential rule.
+  @local %{
+    "watch_ci" => {%{"repo" => "demo/app", "pr" => 42, "next_run" => true}, :forgejo},
+    "watch_task" => {%{"id" => "DEMO-12"}, :plane},
+    "watch_release" => {%{"repo" => "app"}, nil},
+    "cancel_watch" => {%{"id" => "00000000-0000-0000-0000-000000000000"}, nil}
+  }
+
+  @all Map.merge(@writes, @local)
+
   test "every write tool in the registry is covered by the policy matrix below" do
     writes =
       for mod <- Tools.all(),
@@ -49,11 +60,11 @@ defmodule Switchboard.WriteToolsTest do
           not String.starts_with?(mod.name(), "test_"),
           do: mod.name()
 
-    assert Enum.sort(writes) == Enum.sort(Map.keys(@writes))
+    assert Enum.sort(writes) == Enum.sort(Map.keys(@all))
   end
 
   describe "policy matrix" do
-    for {tool, {args, system}} <- @writes do
+    for {tool, {args, system}} <- @all do
       if system do
         test "#{tool} refuses without the person's own #{system} connection and never falls back",
              %{user: user} do
@@ -89,23 +100,76 @@ defmodule Switchboard.WriteToolsTest do
         refute_received {:upstream_write, _, _, _, _, _}
       end
 
-      test "#{tool} writes with the person's own credential only (or, for notify_me, only to the caller)",
-           %{scope: scope, user: user} do
-        stub()
-        assert {:ok, _} = Tools.run(scope, unquote(tool), unquote(Macro.escape(args)))
-        assert_received {:upstream_write, host, _method, _path, creds, body}
+      if Map.has_key?(@writes, tool) do
+        test "#{tool} writes with the person's own credential only (or, for notify_me, only to the caller)",
+             %{scope: scope, user: user} do
+          stub()
+          assert {:ok, _} = Tools.run(scope, unquote(tool), unquote(Macro.escape(args)))
+          assert_received {:upstream_write, host, _method, _path, creds, body}
 
-        case unquote(system) do
-          :plane -> assert creds["x-api-key"] == "plane-key-#{user.id}"
-          :argus -> assert creds["authorization"] == "Bearer argus_key"
-          :outline -> assert creds["authorization"] == "Bearer ol-key"
-          :rocketchat -> assert creds["x-auth-token"] == "rc-personal-#{user.id}"
-          nil -> assert creds["x-auth-token"] == "bot-token" and body["username"] == "ana"
+          case unquote(system) do
+            :plane -> assert creds["x-api-key"] == "plane-key-#{user.id}"
+            :argus -> assert creds["authorization"] == "Bearer argus_key"
+            :outline -> assert creds["authorization"] == "Bearer ol-key"
+            :rocketchat -> assert creds["x-auth-token"] == "rc-personal-#{user.id}"
+            nil -> assert creds["x-auth-token"] == "bot-token" and body["username"] == "ana"
+          end
+
+          # Nothing anywhere uses the bot token except notify_me.
+          if unquote(system), do: refute(Enum.any?(Map.values(creds), &(&1 =~ "bot-token")))
+          assert host in ~w(plane.test argus.test outline.test chat.test)
         end
+      end
+    end
 
-        # Nothing anywhere uses the bot token except notify_me.
-        if unquote(system), do: refute(Enum.any?(Map.values(creds), &(&1 =~ "bot-token")))
-        assert host in ~w(plane.test argus.test outline.test chat.test)
+    for {tool, {args, _system}} <- @local do
+      test "#{tool} changes only the caller's own watches and writes nothing upstream", %{
+        scope: scope,
+        user: user
+      } do
+        stub()
+        other = user_fixture()
+
+        other_watch =
+          Repo.insert!(%Switchboard.Watches.Watch{
+            user_id: other.id,
+            kind: "task",
+            target: %{"id" => "DEMO-1"},
+            subject: "DEMO-1",
+            expires_at: DateTime.add(DateTime.utc_now(:second), 3600)
+          })
+
+        args =
+          if unquote(tool) == "cancel_watch" do
+            # Someone else's watch can't be cancelled; the caller's own can.
+            assert {:error, _} = Tools.run(scope, "cancel_watch", %{"id" => other_watch.id})
+
+            own =
+              Repo.insert!(%Switchboard.Watches.Watch{
+                user_id: user.id,
+                kind: "task",
+                target: %{"id" => "DEMO-2"},
+                subject: "DEMO-2",
+                expires_at: DateTime.add(DateTime.utc_now(:second), 3600)
+              })
+
+            %{"id" => own.id}
+          else
+            unquote(Macro.escape(args))
+          end
+
+        assert {:ok, _} = Tools.run(scope, unquote(tool), args)
+        refute_received {:upstream_write, _, _, _, _, _}
+        refute_received {:forgejo_write, _, _}
+        assert Repo.get!(Switchboard.Watches.Watch, other_watch.id).status == "active"
+      end
+    end
+
+    test "watch tools say they only affect the caller instead of asking for confirmation" do
+      for name <- Map.keys(@local) do
+        {:ok, mod} = Tools.fetch(name)
+        refute mod.annotations()[:read_only]
+        assert mod.description() =~ ~r/only (notifies|affects) the user who asked/i
       end
     end
 

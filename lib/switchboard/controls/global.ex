@@ -7,12 +7,13 @@ defmodule Switchboard.Controls.Global do
   schema "global_controls" do
     field :read_only, :boolean, default: false
     field :maintenance_message, :string
+    field :watches_paused, :boolean, default: false
     timestamps(type: :utc_datetime)
   end
 
   def changeset(global, attrs) do
     global
-    |> cast(attrs, [:read_only, :maintenance_message])
+    |> cast(attrs, [:read_only, :maintenance_message, :watches_paused])
     |> update_change(:maintenance_message, &(&1 && String.trim(&1)))
     |> validate_length(:maintenance_message, max: 200)
   end

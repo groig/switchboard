@@ -210,6 +210,7 @@ defmodule SwitchboardWeb.Layouts do
       {~p"/connections", "g c"},
       {~p"/clients", "g t"},
       {~p"/activity", "g a"},
+      {~p"/watches", "g w"},
       {~p"/profile", "g p"}
     ] ++ if(admin?(scope), do: [{~p"/admin", "g x"}], else: [])
   end
@@ -292,6 +293,14 @@ defmodule SwitchboardWeb.Layouts do
           shortcut="G A"
         >
           {gettext("My activity")}
+        </.nav_item>
+        <.nav_item
+          navigate={~p"/watches"}
+          icon="hero-bell-alert"
+          active={@active == :watches}
+          shortcut="G W"
+        >
+          {gettext("My watches")}
         </.nav_item>
         <.nav_item
           navigate={~p"/profile"}
@@ -459,6 +468,7 @@ defmodule SwitchboardWeb.Layouts do
          {gettext("Connections"), ["G", "C"]},
          {gettext("Clients and tokens"), ["G", "T"]},
          {gettext("My activity"), ["G", "A"]},
+         {gettext("My watches"), ["G", "W"]},
          {gettext("Profile"), ["G", "P"]}
        ] ++ if(admin?(scope), do: [{gettext("Admin controls"), ["G", "X"]}], else: [])}
     ]

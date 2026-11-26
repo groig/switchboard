@@ -14,6 +14,7 @@ defmodule SwitchboardWeb.AuditLabels do
   def action("client.revoked"), do: gettext("Disconnected a client")
   def action("oauth.approved"), do: gettext("Approved a client")
   def action("oauth.denied"), do: gettext("Denied a client")
+  def action("watch.cancelled"), do: gettext("Cancelled a watch")
   def action("admin.controls_updated"), do: gettext("Changed global controls")
   def action("admin.tool_updated"), do: gettext("Changed a tool's controls")
   def action("admin.tool_reset"), do: gettext("Reset a tool's controls")

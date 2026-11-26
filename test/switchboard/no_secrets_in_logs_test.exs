@@ -8,7 +8,9 @@ defmodule Switchboard.NoSecretsInLogsTest do
     * OAuth for MCP clients: registration, consent, code exchange, refresh, revocation, a tool
       call with the bearer;
     * personal tokens: creation (LiveView) and use;
-    * Rocket.Chat writes as the person and as the bot user.
+    * Rocket.Chat writes as the person and as the bot user;
+    * Rocket.Chat reads (`chat_inbox`, `chat_read`: message text is private too), watch
+      notices, and the Forgejo webhook (its secret and signature).
   """
   use SwitchboardWeb.ConnCase, async: false
 
@@ -345,6 +347,123 @@ defmodule Switchboard.NoSecretsInLogsTest do
       end)
 
     assert_clean(log)
+    refute log =~ "bot-token"
+  end
+
+  test "Rocket.Chat reads, watch notices and the Forgejo webhook keep tokens and message text out" do
+    {user, _} = with_log(fn -> user_fixture(%{name: "Log Check"}) end)
+    scope = Scope.for_user(user)
+    rc_token = secret("rc-token")
+    private = "private words #{@m}"
+    room = "rLogCheck00000001"
+
+    {:ok, _} =
+      with_log(fn ->
+        Repo.insert(%Connections.Connection{
+          user_id: user.id,
+          system: "rocketchat",
+          secret: %{"token" => rc_token, "user_id" => "uLogCheck0000001"},
+          status: "ok",
+          identity: %{"username" => user.username},
+          identity_matches: true
+        })
+      end)
+      |> elem(0)
+
+    message = %{
+      "_id" => "mLogCheck0000001",
+      "rid" => room,
+      "msg" => private,
+      "ts" => DateTime.utc_now() |> DateTime.to_iso8601(),
+      "u" => %{"_id" => "uOther000000001", "username" => "other", "name" => "Other"}
+    }
+
+    Req.Test.stub(Switchboard.Upstreams, fn conn ->
+      case conn.request_path do
+        "/api/v1/subscriptions.get" ->
+          Req.Test.json(conn, %{
+            "update" => [%{"rid" => room, "t" => "d", "unread" => 1, "open" => true}]
+          })
+
+        "/api/v1/rooms.get" ->
+          Req.Test.json(conn, %{
+            "update" => [
+              %{"_id" => room, "t" => "d", "uids" => ["a", "b"], "lastMessage" => message}
+            ]
+          })
+
+        "/api/v1/users.info" ->
+          Req.Test.json(conn, %{
+            "user" => %{"username" => user.username, "name" => user.name, "type" => "user"}
+          })
+
+        "/api/v1/subscriptions.getOne" ->
+          Req.Test.json(conn, %{"subscription" => %{"rid" => room, "t" => "d", "name" => "other"}})
+
+        "/api/v1/im.history" ->
+          Req.Test.json(conn, %{"messages" => [message]})
+
+        "/api/v1/im.create" ->
+          Req.Test.json(conn, %{"room" => %{"_id" => "dm1"}})
+
+        "/api/v1/chat.postMessage" ->
+          Req.Test.json(conn, %{"message" => %{"_id" => "m1"}})
+      end
+    end)
+
+    log =
+      capture_log([level: :debug], fn ->
+        {:ok, inbox} = Tools.run(scope, "chat_inbox", %{})
+        assert inbox =~ private
+        {:ok, read} = Tools.run(scope, "chat_read", %{"target" => room})
+        assert read =~ private
+
+        # A watch notice whose content (release highlights) carries the marker.
+        watch =
+          Repo.insert!(%Switchboard.Watches.Watch{
+            user_id: user.id,
+            kind: "release",
+            target: %{"repo" => "app"},
+            subject: "app",
+            expires_at: DateTime.add(DateTime.utc_now(:second), 3600)
+          })
+
+        :notified =
+          Switchboard.Watches.notify(watch, %{
+            "repo" => "app",
+            "name" => "r1",
+            "status" => "success",
+            "highlights" => [private]
+          })
+
+        :ok =
+          Oban.Testing.perform_job(
+            Switchboard.Watches.Deliver,
+            %{watch_id: watch.id, notice: "result"},
+            repo: Repo
+          )
+
+        # The webhook: a bad signature is refused without logging the body or the secret.
+        body =
+          Jason.encode!(%{
+            "run" => %{"repository" => %{"full_name" => "demo/app"}},
+            "note" => private
+          })
+
+        conn =
+          Phoenix.ConnTest.build_conn(:post, "/hooks/forgejo", body)
+          |> Plug.Conn.put_req_header("content-type", "application/json")
+          |> Plug.Conn.put_req_header("x-forgejo-event", "action_run_success")
+          |> Plug.Conn.put_req_header("x-forgejo-signature", "0" <> secret("sig"))
+          |> SwitchboardWeb.Endpoint.call([])
+
+        assert conn.status == 401
+        Logger.flush()
+      end)
+
+    assert_clean(log)
+    refute log =~ rc_token
+    refute log =~ "hook-secret"
     refute log =~ "bot-token"
   end
 end

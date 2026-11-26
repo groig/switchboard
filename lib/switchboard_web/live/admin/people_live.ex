@@ -40,7 +40,7 @@ defmodule SwitchboardWeb.Admin.PeopleLive do
       |> Repo.all()
       |> Map.new()
 
-    %{grants: grants, tokens: tokens}
+    %{grants: grants, tokens: tokens, watches: Switchboard.Watches.active_counts()}
   end
 
   @impl true
@@ -76,6 +76,9 @@ defmodule SwitchboardWeb.Admin.PeopleLive do
         </:col>
         <:col :let={user} label={gettext("Tokens")} numeric>
           {Map.get(@counts.tokens, user.id, 0)}
+        </:col>
+        <:col :let={user} label={gettext("Active watches")} numeric>
+          {Map.get(@counts.watches, user.id, 0)}
         </:col>
         <:col :let={user} label={gettext("Last sign-in")}>
           <.relative_time at={user.last_login_at} scope={@current_scope} />

@@ -35,7 +35,7 @@ codex mcp add switchboard --url https://switchboard.example.com/mcp
 | 2. Forgejo login, connections, personal tokens, audit, admin controls and bilingual UI | Implemented |
 | 3. Read tools and cross-system queries | Implemented |
 | 4. Writes and notifications | Implemented with per-tool policy tests |
-| 5. Watches | Planned |
+| 5. Watches and reading Rocket.Chat | Implemented: CI, task and release watches (polling plus Forgejo webhook), `chat_inbox`, `chat_read` |
 | 6. Deployment | Release image, Compose example, health check and CI workflow included |
 
 ## Development / Desarrollo
@@ -73,7 +73,7 @@ Production boot reports missing required settings together.
 | `ALLOWED_FORGEJO_ORGS` or `ALLOWED_FORGEJO_TEAMS` | At least one sign-in allowlist. Use comma-separated orgs or `Org/team` names |
 | `ADMIN_USERNAMES` | Comma-separated Forgejo usernames for administrators |
 | `PLANE_URL`, `PLANE_WORKSPACE`, `ARGUS_URL`, `OUTLINE_URL`, `ROCKETCHAT_URL` | Upstream base URLs and Plane workspace slug |
-| `ROCKETCHAT_BOT_USER_ID`, `ROCKETCHAT_BOT_TOKEN` | Bot identity and personal access token for `notify_me` |
+| `ROCKETCHAT_BOT_USER_ID`, `ROCKETCHAT_BOT_TOKEN` | Bot identity and personal access token for `notify_me` and watch notices |
 | `RELEASES_URL`, `RELEASES_TOKEN` | Releases feed endpoint and access token |
 
 | Optional for the app | Purpose |
@@ -83,9 +83,26 @@ Production boot reports missing required settings together.
 | `TRUSTED_PROXIES` | CIDRs trusted to supply the forwarded client IP. Defaults to loopback |
 | `ADMIN_NETWORKS` | Restrict admin access to these CIDRs |
 | `HEALTH_NETWORKS` | Additional peer CIDRs allowed to query `/healthz`. The default permits the direct loopback check |
+| `FORGEJO_WEBHOOK_SECRET` | Secret of the Forgejo webhook at `/hooks/forgejo`. Without it the endpoint refuses requests and watches poll Forgejo (1 to 5 minutes later) |
 | `AUDIT_RETENTION_DAYS`, `POOL_SIZE` | Audit retention in days (180) and database pool size (10) |
 
 Compose requires `SWITCHBOARD_TAG` (published image tag), `POSTGRES_PASSWORD` (use a URL-safe password), `RELEASES_NETWORK` (existing Docker network name) and an explicit `TRUSTED_PROXIES` for your proxy. It constructs `DATABASE_URL` for the bundled database.
+
+### Forgejo webhook for CI watches
+
+Optional; it makes `watch_ci` notices arrive within seconds instead of minutes. In Forgejo, add a
+system webhook (Site administration → Integrations → System webhooks) or one per organization
+(Settings → Webhooks), of type **Forgejo**:
+
+- Target URL: `https://<switchboard host>/hooks/forgejo`, method POST.
+- POST content type: `application/json` (form-encoded payloads are refused).
+- Secret: the value of `FORGEJO_WEBHOOK_SECRET`.
+- Trigger on: **Custom events…**, then under **Action Run events** tick **Failure** and
+  **Success** (**Recover** may be ticked too; Forgejo 16 doesn't send it). Nothing else is needed.
+- Active: on.
+
+`/hooks/forgejo` must be reachable from Forgejo. It isn't under `/admin` or `/dev`, so the usual
+proxy rules already let it through.
 
 ## Publication checks
 

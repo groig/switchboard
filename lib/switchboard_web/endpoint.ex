@@ -48,6 +48,9 @@ defmodule SwitchboardWeb.Endpoint do
   # in the query string).
   plug Plug.Telemetry, event_prefix: [:phoenix, :endpoint], log: false
 
+  # Forgejo's webhook reads its raw body (HMAC), so it runs before the parsers.
+  plug SwitchboardWeb.Plugs.ForgejoHook
+
   plug Plug.Parsers,
     parsers: [:urlencoded, :multipart, :json],
     pass: ["*/*"],

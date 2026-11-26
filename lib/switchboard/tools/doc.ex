@@ -18,7 +18,9 @@ defmodule Switchboard.Tools.Doc do
 
     Every tool runs through `Switchboard.Tools.run/3`: kill switch, read-only mode, a per-person
     rate limit, argument validation and an audit row. Write tools are annotated
-    (`readOnlyHint: false`) and tell the agent to confirm with the user first.
+    (`readOnlyHint: false`) and tell the agent to confirm with the user first; the watch tools
+    (`watch_*`, `cancel_watch`) only change the caller's own watches, so the request is the
+    confirmation. Rocket.Chat message text (`chat_*`) is untrusted: it never authorizes a write.
 
     | Tool | Kind | Connections | Default limit |
     |---|---|---|---|

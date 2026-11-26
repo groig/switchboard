@@ -38,14 +38,22 @@ config :switchboard, Switchboard.Upstreams,
 
 config :switchboard, Switchboard.Audit, retention_days: 180
 
+# Active watches per person.
+config :switchboard, Switchboard.Watches, max_active: 20
+
 config :switchboard, Oban,
   engine: Oban.Engines.Basic,
   repo: Switchboard.Repo,
-  queues: [default: 5],
+  queues: [default: 5, watches: 5],
   plugins: [
     {Oban.Plugins.Pruner, max_age: 7 * 24 * 60 * 60},
     {Oban.Plugins.Lifeline, rescue_after: :timer.minutes(30)},
-    {Oban.Plugins.Cron, crontab: [{"23 3 * * *", Switchboard.Audit.Prune}]}
+    {Oban.Plugins.Cron,
+     crontab: [
+       {"23 3 * * *", Switchboard.Audit.Prune},
+       # Watches: expiry, recovery, the shared releases feed, Plane task polls.
+       {"* * * * *", Switchboard.Watches.Sweep}
+     ]}
   ]
 
 # Never log credential-like parameters (Phoenix matches these as substrings of the key).

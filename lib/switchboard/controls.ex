@@ -4,6 +4,7 @@ defmodule Switchboard.Controls do
 
     * global read-only mode (refuses every tool that isn't read-only);
     * a maintenance message (a banner in the web app and a note on tool results);
+    * pausing every watch (no new watches, no polling, no notices);
     * per-tool kill switches and rate limits.
 
   Reads come from a `:persistent_term` snapshot, so the hot path (every tool call) never hits
@@ -29,6 +30,9 @@ defmodule Switchboard.Controls do
   ## Reads (cached)
 
   def read_only?, do: snapshot().global.read_only
+
+  @doc "Whether watches are paused (no new watches, no polling, no notices)."
+  def watches_paused?, do: snapshot().global.watches_paused == true
 
   def maintenance_message do
     case snapshot().global.maintenance_message do
@@ -94,7 +98,8 @@ defmodule Switchboard.Controls do
 
       Audit.log_web(scope, "admin.controls_updated", %{
         read_only: global.read_only,
-        maintenance_message: global.maintenance_message
+        maintenance_message: global.maintenance_message,
+        watches_paused: global.watches_paused
       })
 
       {:ok, global}

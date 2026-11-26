@@ -278,6 +278,9 @@ defmodule Switchboard.UpstreamStubs do
     end
   end
 
+  defp forgejo(conn, "/api/v1/repos/demo/app"),
+    do: Req.Test.json(conn, %{"full_name" => "demo/app", "private" => true})
+
   defp forgejo(conn, "/api/v1/repos/demo/app/pulls/42") do
     Req.Test.json(conn, %{
       "number" => 42,

@@ -265,6 +265,9 @@ defmodule Switchboard.Upstreams do
       :rate_limited when system == :plane ->
         "Plane refused the request: your Plane key's rate limit is used up (about 60 requests a minute, shared with your other tools). Try again in a minute."
 
+      :rate_limited when system == :rocketchat ->
+        "Rocket.Chat's rate limit is used up (about 10 requests a minute per endpoint, shared by everyone using Switchboard). Try again in a minute."
+
       :rate_limited ->
         "#{name} rate limit reached. Try again in a minute."
 

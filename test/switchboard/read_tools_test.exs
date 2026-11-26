@@ -134,9 +134,11 @@ defmodule Switchboard.ReadToolsTest do
       end
 
       refute_received {:forgejo_write, _, _}
-      # Forgejo tools are read-only in v1.
+      # Forgejo tools are read-only; watch_ci writes only Switchboard's own watch (its Forgejo
+      # calls are checked to be GETs in watches_test.exs).
       for mod <- Tools.all(),
           :forgejo in mod.connections(),
+          mod.name() != "watch_ci",
           do: assert(mod.annotations()[:read_only])
     end
   end

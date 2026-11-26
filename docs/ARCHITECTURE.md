@@ -5,7 +5,8 @@ agent ──Streamable HTTP + bearer──▶ Caddy ──▶ Switchboard (Phoen
                                                ├─ /mcp                       MCP endpoint (OAuth or sb_ token)
                                                ├─ /oauth/*, /.well-known/*   authorization server
                                                ├─ /auth/forgejo*             sign in with Forgejo
-                                               ├─ web app (LiveView)         connections, clients, activity, profile
+                                               ├─ /hooks/forgejo             Forgejo webhook (HMAC; a hint for watches)
+                                               ├─ web app (LiveView)         connections, clients, activity, watches, profile
                                                └─ /admin, /dev               private network only (proxy rule + ADMIN_NETWORKS)
               upstreams: Forgejo · Plane · Argus · Outline · Rocket.Chat · release bot (releases feed)
 ```
@@ -23,6 +24,7 @@ agent ──Streamable HTTP + bearer──▶ Caddy ──▶ Switchboard (Phoen
 | Personal tokens | `Switchboard.PersonalTokens` | `sb_...` bearer tokens for clients without OAuth. |
 | Read path | `Switchboard.Plane`, `.Forgejo`, `.Argus`, `.Outline`, `.Releases`, `Switchboard.Upstreams.Guard`, `Switchboard.FanOut`, `Switchboard.Untrusted` | Read-only API clients, per-upstream limits and breakers, concurrent fan-out (below). |
 | Safety | `Switchboard.Audit`, `Switchboard.Controls`, `Switchboard.RateLimit` | Append-only audit, live kill switches and read-only mode, ETS token buckets. |
+| Watches | `Switchboard.Watches`, `Switchboard.Watches.*` (Oban workers) | "DM me when this finishes" (below). |
 
 ### `Tools.run/3`
 
@@ -58,9 +60,10 @@ path never queries the database. Writes reload it and broadcast `:controls_chang
 | `oauth_grants` | One client connection for one person: the refresh-token family. |
 | `oauth_tokens` | Access (1 h) and refresh (30 d, rotating) tokens, hashed. |
 | `audit_events` | Append-only: `at`, `user_id`/`username` (no foreign key, so the trail outlives the account), `kind` (`mcp`/`web`), `action` (tool name or web action), client, redacted `args`, `outcome` (`ok`, `error`, `denied`, `rate_limited`, `disabled`), `error`, `duration_ms`, `result_bytes`, `upstreams`, `ip`. |
-| `global_controls` | One row: `read_only`, `maintenance_message`. |
+| `global_controls` | One row: `read_only`, `maintenance_message`, `watches_paused`. |
 | `tool_controls` | Per-tool overrides: `enabled`, `rate_limit` (calls per person per minute). |
-| `oban_jobs` | Oban. Today only the daily audit retention job (`Switchboard.Audit.Prune`). |
+| `watches` | One per watch: `user_id`, `kind` (`ci`/`task`/`release`), `target`, `subject` (lookup key), `options`, `status` (`active`, `fired`, `expired`, `cancelled`) with `end_reason` and `ended_at`, `expires_at`, `last_state` (what the last check saw: statuses, names, links; never message text), `notified_at`/`health_notified_at` (decided once), `deliveries` (per notice: `sending`, `sent`, `unsure`), `checks`, `last_checked_at`. |
+| `oban_jobs` | Oban: the daily audit retention job (`Switchboard.Audit.Prune`) and the watch jobs (queue `watches`). |
 
 ### Audit append-only
 
@@ -185,9 +188,9 @@ person per minute by default —, audit) and the same guard, with two extra rule
 
 ### notify_me and the bot user
 
-`notify_me` is the only tool that uses a service credential: an existing Rocket.Chat bot
-user's personal access token (`ROCKETCHAT_BOT_USER_ID`, `ROCKETCHAT_BOT_TOKEN`). The recipient is
-always the caller: the username of their linked Rocket.Chat key when it matched their email,
+`notify_me` and watch notices are the only uses of a service credential besides the releases feed:
+an existing Rocket.Chat bot user's personal access token (`ROCKETCHAT_BOT_USER_ID`, `ROCKETCHAT_BOT_TOKEN`). The recipient is
+always the caller (for a watch notice, the watch's owner): the username of their linked Rocket.Chat key when it matched their email,
 otherwise the Rocket.Chat user with their Forgejo username, accepted only if its display name is
 their Forgejo name. Other automation may answer in that bot's DMs, so every notice ends with
 "Automatic notice from Switchboard. Replies here aren't read." (or the Spanish version) and
@@ -210,6 +213,109 @@ contains no live @-mentions (a zero-width space follows every `@`).
   or dotted module name).
 - **Outline:** `documents.search` and `documents.info`; relative document URLs are made absolute;
   `docs_read` pages the Markdown in 8 000-character pages.
+
+## Rocket.Chat reads (milestone 5)
+
+`chat_inbox` and `chat_read` read as the person (their linked token), GET only.
+
+- **Inbox:** `subscriptions.get` and `rooms.get`, both with `updatedSince` = the window (default 7
+  days), cached 30 s per key. A DM (1:1 or group, `t: d`) is waiting when its room's
+  `lastMessage` is from someone else and inside the window; unread (`unread > 0`) or read but
+  not answered. Left out: the person's own last message, the Switchboard bot's DMs (its user id
+  in `uids` or as sender), integration messages (`bot` field), bot accounts (`users.info` `type`
+  `bot`/`app`, at most 5 checks a call, cached a day; roles are admin-only), hidden
+  (`open: false`) and muted (`disableNotifications`) rooms unless `include_muted`. Oldest first.
+  `mentions`: up to 3 channels with `userMentions > 0`, `chat.getMentionedMessages` (3 each).
+  `threads`: up to 3 ids from `tunread`, the latest reply of each (`chat.getThreadMessages`).
+  `lastMessage` ignores thread replies, so threads only show up there.
+- **Read:** `@username` (`im.messages`, which never creates a DM), `#channel` (`rooms.info`),
+  a permalink of the configured host, or a room id; every room is checked with
+  `subscriptions.getOne` (membership, as `send_message` does) before `im/channels/groups.history`
+  (`showThreadMessages=false`, `latest` for paging). Threads: `chat.getMessage` (parent),
+  membership, `chat.getThreadMessages`.
+- **Never marked read:** none of these change read state (only `subscriptions.read`/`unread`,
+  `chat.readThread` and the web client's DDP methods do). A test asserts every call is a GET to
+  none of those endpoints.
+- **Rate limits:** Rocket.Chat 8.x limits each REST route to 10 calls a minute per *client IP*
+  (`API_Enable_Rate_Limiter_Limit_Calls_Default`/`_Time_Default`), so all of Switchboard shares one
+  bucket per route; the bot role bypasses it (`api-bypass-rate-limit`). Personal calls spend a
+  per-route budget in `Switchboard.RocketChat` (8 a minute per node, `:route_budget`) and fail
+  fast past it. An inbox costs 2 calls, plus at most 5 + 3 + 3. If people hit it often, an admin
+  can raise the Rocket.Chat default or grant Switchboard's traffic a higher limit.
+
+## Watches (milestone 5)
+
+"DM me in Rocket.Chat when this finishes": `watch_ci`, `watch_task`, `watch_release`,
+`list_watches`, `cancel_watch`, and `/watches` in the web app.
+
+```
+watch_* ──▶ watches row (+ first CiPoll job) ──▶ Oban:
+  CiPoll (per CI watch, 1 → 5 min backoff)  ◀── Hint ◀── POST /hooks/forgejo (HMAC)
+  Sweep (cron, every minute, one node): expire · recover CI jobs · releases feed once · queue TaskPoll
+  TaskPoll (per person, every 5 min, their Plane key)
+        └─ decide: UPDATE … WHERE status='active' AND notified_at IS NULL  +  insert Deliver (one transaction)
+  Deliver (unique per watch+notice) ─ claim deliveries[notice] ─▶ RocketChat.deliver (bot user) ─▶ owner
+```
+
+**Decision: Postgres + Oban** (already a dependency) rather than in-memory timers. Watches survive
+restarts and deploys (rows plus persisted jobs; Lifeline rescues orphans; the sweep re-creates a
+missing CI job), Oban cron runs on one node, and the database is the only place that decides a
+notice. Cost: one job per CI watch and a one-minute sweep, negligible at a few hundred watches.
+
+- **Lifetime:** 24 h by default, up to 7 days (`hours`); a release waiting for health stays up to
+  26 h after it finished. Each person has at most 20 active watches (`:max_active`); the same
+  thing can't be watched twice.
+- **Creation checks** with the person's own credentials: the Forgejo repo and PR/branch/run are
+  visible (a CI run that already finished is answered instead of watched), the Plane item exists,
+  the release repo is in the feed; and Switchboard knows the person's Rocket.Chat user.
+- **CI:** for a PR or branch, every run of the head commit counts (all workflows); the watch is
+  done when all runs are, `failure` if any failed. `next_run` counts only runs newer than the
+  newest run at creation. The notice has the result, the run link and the failed job and step
+  (parsed as `ci_failure` does; no log text). `only_on_failure` ends quietly on success.
+- **Tasks:** one `Plane.item` read per watch every 5 minutes, one job per person so their watches
+  share a pass (≤ 4 requests a minute with 20 watches, inside the ~60 a minute of their key;
+  reads are cached). `until`: `any_change` (state change or shipped), `done` (completed or
+  cancelled), `released` (the feed only; no Plane polling).
+- **Releases:** the sweep reads the feed once for everyone. The next release is the oldest one not
+  finished at creation that reaches `success`, `failure` or `cancelled` (`skipped` doesn't count).
+  The notice has the name, status, run link and highlights (quoted, mentions defused). `health`
+  adds a second notice when the 24 h window ends (`watching: false`, or 26 h): green/yellow/red
+  and the Argus issues marked `fromRelease`.
+- **No double notices:** the decision is a conditional update in the same transaction as the
+  insert of a `Deliver` job that is unique per watch and notice for good; `Deliver` claims the
+  notice in `deliveries` before calling Rocket.Chat and releases the claim only when the post
+  certainly failed (`{:not_sent, _}`); a timeout on the post keeps it (`unsure`). A restart, a
+  redeploy, a retried job or a second node can't send the same notice twice; the trade-off is that
+  a crash mid-post can lose one.
+- **Notices:** `RocketChat.deliver/2` as the bot user, to the owner only (the recipient rule of
+  `notify_me`), in their `locale`, with mentions defused, the automatic-notice footer and a link to
+  `/watches`. At most one notice per watch (result, or the final "stopped/expired" one) plus the
+  health follow-up, and at most 30 watch notices per person an hour (more wait).
+- **Watches that can't work any more** expire with one final notice: the connection is gone
+  (`connection_missing`), rejected (`connection_rejected`), the person lost access
+  (`access_lost`: 403/404 with their token), or time ran out (`timed_out`).
+- **Pause:** `watches_paused` in the global controls (admin, audited): no new watches, no checks,
+  notices wait. Each tool also has its own kill switch.
+
+### The Forgejo webhook
+
+`POST /hooks/forgejo` is a plug before `Plug.Parsers` (it needs the raw body). It answers 503
+without `FORGEJO_WEBHOOK_SECRET`, 415 for anything but `application/json`, 413 over 1 MB, 401
+unless `X-Forgejo-Signature` is the hex HMAC-SHA256 of the body (constant-time compare), and 202
+otherwise, queuing a `Watches.Hint` for `run.repository.full_name`.
+
+**Events (checked in the Forgejo source, v12 to v16):** Forgejo sends `action_run_success` and
+`action_run_failure` (the latter also for cancelled and skipped runs) once per run, when it
+reaches a final state, with an `ActionPayload` (`action`, `run` with `repository`, `commit_sha`,
+`status`, `html_url`). `action_run_recover` exists but is never sent on 13–16 (its "previous run"
+lookup is a stub). Forgejo has **no commit `status` webhook event** at all (Gitea has one). There
+are no `workflow_run`/`workflow_job` events before v17, which adds `workflow_run_*` (also
+accepted). So Switchboard uses the two "Action Run" events.
+
+**A webhook is only a hint.** The hint moves the matching CI watches' next check to now (skipping
+watches checked in the last 10 s); the check reads Forgejo again with the owner's own token. A
+forged, stale or replayed webhook can at most cause an early check; it can't send a notice or
+reveal a repo. Without the webhook, polling alone works (1 to 5 minutes later).
 
 ## Releases
 

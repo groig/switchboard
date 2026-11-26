@@ -40,6 +40,16 @@ defmodule SwitchboardWeb.Admin.ControlsLive do
             hint={gettext("Refuses every tool that changes data. Reads keep working.")}
           />
           <.input
+            field={@global_form[:watches_paused]}
+            type="switch"
+            label={gettext("Pause watches")}
+            hint={
+              gettext(
+                "No new watches, no checks and no notices until switched back. Waiting notices are sent then."
+              )
+            }
+          />
+          <.input
             field={@global_form[:maintenance_message]}
             label={gettext("Maintenance message")}
             hint={

@@ -75,6 +75,7 @@ defmodule SwitchboardWeb.Router do
       live "/connections", ConnectionsLive, :index
       live "/clients", ClientsLive, :index
       live "/activity", ActivityLive, :index
+      live "/watches", WatchesLive, :index
       live "/profile", ProfileLive, :index
     end
   end

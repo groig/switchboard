@@ -27,6 +27,8 @@ defmodule SwitchboardWeb.RequestLog do
   end
 
   @doc "The route template for a request, or a placeholder when nothing matches."
+  def route(%Plug.Conn{path_info: ["hooks", "forgejo"]}), do: "/hooks/forgejo"
+
   def route(%Plug.Conn{} = conn) do
     case Phoenix.Router.route_info(SwitchboardWeb.Router, conn.method, conn.path_info, conn.host) do
       %{route: route} -> route

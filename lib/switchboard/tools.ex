@@ -25,6 +25,8 @@ defmodule Switchboard.Tools do
     Switchboard.Tools.ErrorGet,
     Switchboard.Tools.DocsSearch,
     Switchboard.Tools.DocsRead,
+    Switchboard.Tools.ChatInbox,
+    Switchboard.Tools.ChatRead,
     # Writes (confirm first) and notifications.
     Switchboard.Tools.PlaneComment,
     Switchboard.Tools.PlaneSetState,
@@ -32,7 +34,13 @@ defmodule Switchboard.Tools do
     Switchboard.Tools.ErrorIgnore,
     Switchboard.Tools.DocsDraft,
     Switchboard.Tools.SendMessage,
-    Switchboard.Tools.NotifyMe
+    Switchboard.Tools.NotifyMe,
+    # Watches: DMs to the caller when something finishes (writes that only affect the caller).
+    Switchboard.Tools.WatchCi,
+    Switchboard.Tools.WatchTask,
+    Switchboard.Tools.WatchRelease,
+    Switchboard.Tools.ListWatches,
+    Switchboard.Tools.CancelWatch
   ]
 
   # Tests register extra tools (e.g. a write tool for the policy matrix) through config.

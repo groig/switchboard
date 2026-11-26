@@ -53,7 +53,12 @@ config :switchboard, Switchboard.Upstreams,
   plane: [url: "http://plane.test", workspace: "acme"],
   argus: [url: "http://argus.test"],
   outline: [url: "http://outline.test"],
-  rocketchat: [url: "http://chat.test", bot_user_id: "bot-id", bot_token: "bot-token"],
+  rocketchat: [
+    url: "http://chat.test",
+    bot_user_id: "bot-id",
+    bot_token: "bot-token",
+    route_budget: 100_000
+  ],
   releases: [url: "http://releases.test", token: "releases-token"],
   # Generous limits so async tests never trip each other's breakers; guard tests set their own.
   guard: [max_concurrency: 1_000, acquire_timeout: 1_000, threshold: 1_000, cooldown: 1_000],
@@ -78,3 +83,5 @@ config :switchboard, Switchboard.Tools, extra: [Switchboard.TestTools.Note]
 
 # Short fan-out budgets so slow-upstream tests finish quickly.
 config :switchboard, Switchboard.FanOut, max_timeout: 600
+
+config :switchboard, :forgejo_webhook_secret, "hook-secret"

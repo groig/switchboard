@@ -56,6 +56,12 @@ if accounts != [], do: config(:switchboard, Switchboard.Accounts, accounts)
 if proxies = list_env.("TRUSTED_PROXIES"), do: config(:switchboard, :trusted_proxies, proxies)
 if networks = list_env.("ADMIN_NETWORKS"), do: config(:switchboard, :admin_networks, networks)
 
+# Shared secret of the Forgejo webhook (POST /hooks/forgejo). Optional: without it the endpoint
+# refuses every request and watches rely on polling.
+if secret = System.get_env("FORGEJO_WEBHOOK_SECRET") do
+  if secret != "", do: config(:switchboard, :forgejo_webhook_secret, secret)
+end
+
 if days = System.get_env("AUDIT_RETENTION_DAYS") do
   config :switchboard, Switchboard.Audit, retention_days: String.to_integer(days)
 end

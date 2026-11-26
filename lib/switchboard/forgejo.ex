@@ -72,6 +72,16 @@ defmodule Switchboard.Forgejo do
 
   def run(scope, owner, repo, id), do: get(scope, "/repos/#{owner}/#{repo}/actions/runs/#{id}")
 
+  @doc "A branch and its head commit (`commit.id`). Branch names may contain slashes."
+  def branch(scope, owner, repo, branch) do
+    path =
+      branch
+      |> String.split("/")
+      |> Enum.map_join("/", fn seg -> URI.encode(seg, &URI.char_unreserved?/1) end)
+
+    get(scope, "/repos/#{owner}/#{repo}/branches/#{path}")
+  end
+
   def jobs(scope, owner, repo, run_id),
     do: get(scope, "/repos/#{owner}/#{repo}/actions/runs/#{run_id}/jobs")
 

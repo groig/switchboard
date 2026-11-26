@@ -43,7 +43,8 @@ guidance below.
   token has the person's full rights (accepted risk, see SECURITY); never add a write there
   without a decision recorded in `docs/SECURITY.md`.
 - **Writes:** only with the person's own credential, refused when it's missing; never a service
-  credential (the Rocket.Chat bot user is only for `notify_me`, to the caller). Add every new write tool to the
+  credential (the Rocket.Chat bot user is only for `notify_me` and watch notices, always to the caller or the
+  watch owner, never anyone else). Add every new write tool to the
   policy matrix in `test/switchboard/write_tools_test.exs` (a test fails otherwise). Descriptions
   say to show the exact change and get the user's OK ("confirm first"). Declare `sensitive_args`
   for private text (DMs).
@@ -52,6 +53,21 @@ guidance below.
   write (the write helpers do).
 - **Upstream text goes in `Switchboard.Untrusted.wrap/3`** blocks (descriptions, comments, error
   text, wiki pages, logs, release highlights). Table cells go through `Switchboard.Markdown.cell/2`.
+- **Watches** (`Switchboard.Watches`) live in Postgres and are checked by Oban jobs with the owner's own
+  credentials. A notice is decided by a conditional update (`status = 'active'`, `notified_at IS NULL`)
+  in the same transaction as its unique `Watches.Deliver` job, and `Deliver` claims it in
+  `watches.deliveries` before posting: never send a watch DM any other way. At most one notice per
+  watch, plus a release's health follow-up. A Forgejo webhook is only a hint: it moves checks
+  earlier, never decides a notice. Watch tools (`watch_*`, `cancel_watch`) are writes that only
+  affect the caller: they're in the policy matrix and say "only notifies/affects the user who asked"
+  instead of "confirm first".
+- **Rocket.Chat reads** (`chat_inbox`, `chat_read`) are GET only and must never touch read state
+  (`subscriptions.read`, `chat.readThread`, the client's thread-open methods); a test checks it.
+  Message text is private and untrusted: wrapped, never stored in audit rows (only the result
+  size), and never a reason for a write. Rocket.Chat limits REST calls per route **per client IP**
+  (10/min by default), so every person's calls share one bucket: personal calls spend the
+  per-route budget in `Switchboard.RocketChat` (`:route_budget`); keep new reads to a fixed,
+  small number of calls and cache listings.
 - **Never log query parameters:** the repo runs with `log: false`; `Switchboard.Repo.QueryLog`
   logs SQL without values. Don't turn Ecto's log back on. A new flow that handles a secret gets a
   case in `test/switchboard/no_secrets_in_logs_test.exs`.
@@ -83,11 +99,13 @@ guidance below.
 - **Time zones:** `tz` is the time zone database; `Switchboard.TimeZones` lists and validates
   zones and shifts dates (falling back to UTC for unknown zones).
 - **Tests:** `Req.Test` stub names are `Switchboard.Forgejo` (sign-in), `Switchboard.Upstreams`
-  (every upstream read, including Forgejo's API and the releases feed; use
+  (every upstream read, including Forgejo's API, Rocket.Chat and the releases feed; use
   `Switchboard.UpstreamStubs.stub/1`) and `Switchboard.OAuth.CIMD`. Guard tests are synchronous
   and set their own limits; the test config makes breakers and limits generous for everyone else. `user_fixture/1` stores a Forgejo connection; `stub_forgejo/2` answers
   Forgejo's API for membership re-checks. MCP protocol tests are `async: false`: anubis runs tool
-  calls in its own tasks, which need the shared sandbox.
+  calls in its own tasks, which need the shared sandbox. Oban runs `testing: :manual`: tests run
+  watch jobs with `Oban.Testing.perform_job/2` and assert on enqueued `Deliver` jobs. The test
+  config sets `FORGEJO_WEBHOOK_SECRET` to `hook-secret` and a huge Rocket.Chat route budget.
 
 ## Project guidelines
 
