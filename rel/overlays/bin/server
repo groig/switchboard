@@ -1,0 +1,9 @@
+#!/bin/sh
+set -eu
+
+cd -P -- "$(dirname -- "$0")"
+
+# Migrations run on every boot; they are idempotent.
+./migrate
+
+PHX_SERVER=true exec ./switchboard start

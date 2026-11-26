@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang={assigns[:locale] || "en"} data-theme-pref={theme_pref(assigns[:current_scope])}>
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="csrf-token" content={get_csrf_token()} />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="theme-color" content="#fdfcfb" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#1c1a18" media="(prefers-color-scheme: dark)" />
+    <meta name="robots" content="noindex, nofollow" />
+    <.live_title default="Switchboard" suffix=" · Switchboard" phx-no-format>{assigns[:page_title]}</.live_title>
+    <link
+      rel="preload"
+      href={~p"/fonts/InterVariable.woff2"}
+      as="font"
+      type="font/woff2"
+      crossorigin
+    />
+    <link phx-track-static rel="stylesheet" href={~p"/assets/css/app.css"} />
+    <script defer phx-track-static type="text/javascript" src={~p"/assets/js/app.js"}>
+    </script>
+    <%!-- Runs before first paint so there is no flash of the wrong theme or
+         sidebar width. The only inline script; allowed by its CSP nonce. --%>
+    <script nonce={assigns[:csp_nonce]}>
+      (() => {
+        const d = document.documentElement
+        let pref = d.dataset.themePref
+        try {
+          if (pref) localStorage.setItem("switchboard:theme", pref)
+          else pref = localStorage.getItem("switchboard:theme")
+          d.dataset.sidebar = localStorage.getItem("switchboard:sidebar") || "expanded"
+        } catch (_e) {}
+        pref = pref || "system"
+        d.dataset.themePref = pref
+        d.dataset.theme = pref === "system"
+          ? (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light")
+          : pref
+        if (/Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent)) d.dataset.platform = "mac"
+      })()
+    </script>
+  </head>
+  <body>
+    {@inner_content}
+  </body>
+</html>

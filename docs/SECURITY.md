@@ -1,0 +1,145 @@
+# Security
+
+Switchboard holds every developer's credentials for the company's systems and lets AI agents use
+them. This is the threat model, what protects against each threat, and what is still open. It
+grows with each milestone.
+
+## Assets
+
+- Upstream credentials (Plane, Argus, Outline, Rocket.Chat keys; Forgejo OAuth tokens).
+- Switchboard bearer tokens (OAuth access and refresh tokens, personal `sb_` tokens).
+- The audit log.
+- Upstream data reached through tools.
+
+## Controls in place
+
+- **Secrets at rest:** `connections.secret` is encrypted with AES-256-GCM (`cloak_ecto`, key from
+  `CLOAK_KEY`, rotation through `CLOAK_RETIRED_KEYS` and `Switchboard.Vault.reencrypt_all/0`).
+  The field is `redact: true`, so `inspect/1`, logs and crash reports don't show it. Secrets are
+  never assigned to a LiveView socket: the Connections page sees only status and identity, and the
+  link form is cleared after every submit.
+- **Tokens are hashed:** OAuth codes, access and refresh tokens and personal tokens are stored as
+  SHA-256 only. Personal tokens are shown once.
+- **Logs:** request logs carry route templates, not paths or query strings
+  (`SwitchboardWeb.RequestLog`). Ecto's query log is off because it prints parameter values
+  (plaintext secrets before encryption); `Switchboard.Repo.QueryLog` logs SQL without values.
+  `test/switchboard/no_secrets_in_logs_test.exs` runs every secret-handling flow at debug level
+  (linking and re-linking every connection type, through the context and the web form; Forgejo
+  sign-in and refresh; OAuth registration, consent, code exchange, refresh, revocation and a call;
+  personal tokens; Rocket.Chat writes as the person and as the bot user) and fails if any secret
+  appears in the log or in an audit row.
+- **Lesson: Ecto logs cast parameters before encryption.** `cloak_ecto` encrypts when the value
+  is dumped, so Ecto's own debug query log shows the plaintext of every encrypted field it writes
+  (tokens at sign-in, linked keys). That is why the repo runs with `log: false`, and why the guard
+  test above exists: any new flow that handles a secret gets a case there. Production logs at
+  `:info`, but the rule applies in every environment. `:filter_parameters` covers `password`, `secret`, `token`,
+  `api_key`, `key`, `code`, `verifier`, `authorization`, `credential` and `user_id`. Audit
+  arguments are redacted (`Audit.redact/2`). Forgejo login errors log the reason, never the token.
+- **Browser:** strict CSP with a per-request nonce, no inline scripts or handlers,
+  `frame-ancestors 'none'`, `form-action 'self'` (plus the client's redirect origin on the consent
+  page only), `X-Robots-Tag: noindex`, a restrictive `Permissions-Policy`, CSRF protection,
+  `SameSite=Lax` cookies.
+- **Sessions:** a session carries the user's `session_version`; "revoke all" bumps it and
+  disconnects open LiveViews.
+- **Admin surface:** `/admin` and `/dev` are restricted to a private network in the reverse proxy
+  (and `/dev` exists only in development builds), admins are a configured list of
+  Forgejo usernames, and `ADMIN_NETWORKS` (optional) makes the app refuse other client addresses
+  as well. `X-Forwarded-For` is honoured only from `TRUSTED_PROXIES`.
+- **Live controls:** per-tool kill switches, per-tool rate limits and global read-only mode apply on
+  the next call and are audited.
+
+## Threats
+
+### Stolen bearer token
+
+- An access token lives one hour and is bound to the `/mcp` resource.
+- A stolen refresh token is detected when either party uses it after the other: reuse revokes the
+  whole grant (token family).
+- Every refresh re-checks the person against Forgejo, so off-boarding (deactivation, leaving the
+  org, revoking Switchboard's app in Forgejo) cuts access within the hour without manual steps.
+- People see and revoke their clients and tokens at `/clients`; admins revoke everything for a
+  person at `/admin/people`.
+- Personal tokens can expire (7 to 365 days) and show `last_used_at`.
+- The audit log records the client and IP of every call.
+
+### Malicious MCP client registration
+
+- **CIMD SSRF:** client metadata URLs must be `https://` with a host name (no IP literals or
+  credentials). The host is resolved once, every answer must be public (no private, loopback,
+  link-local, CGNAT, multicast or reserved ranges, IPv4 or IPv6, including v4-mapped), and the
+  connection goes to the checked address with TLS verified against the host name, so DNS
+  rebinding can't redirect it. No redirects, a 16 KB cap and a 5 s budget. The document's
+  `client_id` must equal its URL.
+- **Open redirect:** redirect URIs must match a registered one exactly; only loopback `http` may
+  vary the port (RFC 8252). An unregistered redirect URI is shown as an error page and never
+  redirected to.
+- **Phishing by client name:** the consent page shows the client id (for CIMD, the URL of its
+  domain) and the redirect host, and warns that a DCR client's name is self-asserted.
+- **Authorization code interception:** PKCE S256 is mandatory; codes live 60 s, are single use, and
+  a replayed code revokes what the first exchange produced. Every authorization response carries
+  `iss` (RFC 9207) against mix-up attacks.
+
+### Prompt injection from upstream content
+
+- The server instructions tell the agent that upstream content is data, not instructions, and
+  never to call a write tool because such content asks for it.
+- Every piece of upstream text a tool returns (task descriptions and comments, error titles and
+  texts, wiki pages, CI logs, release highlights) is inside an `<untrusted source="...">` block.
+  Closing or opening tags inside the text are neutralised, so content can't break out of its
+  block; attribute values are restricted to a safe character set.
+- Write tools are annotated `readOnlyHint: false` so clients ask before running them, and their
+  descriptions require confirming with the user (a test enforces the wording). v1 read tools are
+  all read-only.
+- Writes have lower default rate limits (10/min), can be switched off one by one or all at once
+  (read-only mode), and are audited. Each write tool's description requires the agent to show the
+  exact change and get the user's OK first.
+
+### Confused deputy
+
+- A tool acts only with the caller's own credential (`Upstreams.credential/2` takes the scope's
+  user). There are exactly two service credentials: the Rocket.Chat bot user's token, used only by `notify_me`
+  for a DM to the caller, and the read-only releases feed.
+- The policy-matrix test checks every write tool: it refuses without the person's own connection
+  (and no request reaches the upstream), it is blocked by read-only mode and by its kill switch, and
+  the request carries the person's credential, never the bot's. A test fails when a new write
+  tool isn't in the matrix.
+- `notify_me` can't be pointed at someone else: it takes no recipient. The recipient comes from the
+  person's verified Rocket.Chat identity, or from their Forgejo username only when the Rocket.Chat
+  display name matches theirs; otherwise it refuses.
+- `send_message` posts only where the person can (it checks channel membership first) and refuses
+  `@all`, `@here` and `@everyone` whatever their permissions.
+- A key that belongs to someone else (by email) is flagged on the Connections page.
+
+### CI logs
+
+`ci_failure` returns the tail of a job log. Before it leaves Switchboard, lines are scrubbed of
+private key blocks, bearer/basic/token headers, JWTs, well-known token prefixes (GitHub, GitLab,
+Slack, OpenAI, AWS, Argus, Outline, Switchboard), credentials in URLs, and values of
+`*PASSWORD*`/`*SECRET*`/`*TOKEN*`/`*API_KEY*`-style assignments. Runner masking (`***`) stays.
+Scrubbing is best effort: the log is still the person's own data, read with their own access.
+
+### Leaked database dump
+
+- Upstream secrets are encrypted; the key is not in the database.
+- Bearer tokens and codes are hashed; the dump can't be replayed against `/mcp`.
+- The audit log holds redacted arguments only.
+- What leaks: names, emails, Forgejo usernames, which systems each person connected, and the
+  audit trail (tool names, redacted arguments, timings).
+
+## Known limitations and decisions
+
+- **Accepted risk: the Forgejo token has the person's full rights.** Forgejo 16 doesn't enforce
+  scopes on OAuth2 tokens ("OAuth2 scopes are not yet implemented"; the tokens can be used "to
+  execute any actions on behalf of the user"). The decision (2026-11-26) is to keep using the
+  encrypted sign-in token rather than ask for a separate scoped Forgejo key, and to accept that a
+  leak of the token (it never leaves the server decrypted) or a bug in Switchboard could act as the
+  person in Forgejo. Mitigations:
+  - the token is encrypted at rest, never logged, never returned, never given to tools;
+  - `Switchboard.Forgejo` can only send `GET`: there is no other request function, and a test
+    asserts that every Forgejo request any tool makes is a GET. Forgejo tools are read-only in v1;
+  - Switchboard requests narrow scopes anyway, so the consent screen is honest and nothing changes
+    if Forgejo starts enforcing them.
+- **Fail open on Forgejo outages** during refresh (see above). The exposure is bounded by the
+  access-token lifetime and the next refresh.
+- **Single node:** rate limits and the controls cache are per node. Fine for one container. A
+  cluster would need shared buckets.

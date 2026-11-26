@@ -1,0 +1,20 @@
+<Layouts.auth flash={@flash} width="26rem">
+  <h1 class="text-xl font-semibold text-fg">{gettext("Sign in to Switchboard")}</h1>
+  <p class="mt-2 text-base text-fg-muted">
+    {gettext(
+      "A gateway for AI agents: Plane, Forgejo, Argus, Outline and Rocket.Chat in one MCP server, with your own permissions."
+    )}
+  </p>
+  <.button
+    id="sign-in"
+    variant="primary"
+    href={~p"/auth/forgejo"}
+    icon="hero-arrow-right-end-on-rectangle-mini"
+    class="mt-6 w-full"
+  >
+    {gettext("Sign in with Forgejo")}
+  </.button>
+  <:footer>
+    <span class="font-mono text-xs">claude mcp add --transport http switchboard {@mcp_url}</span>
+  </:footer>
+</Layouts.auth>

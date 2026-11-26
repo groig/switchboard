@@ -1,0 +1,19 @@
+# Fixed, public Phoenix and Cloak keys for local development and tests.
+[extend]
+useDefault = true
+
+[[allowlists]]
+condition = "AND"
+paths = ['^config/dev\.exs$']
+regexes = [
+  '^L41YdMKiPnBcbw6Av2vyJyTrvlp3MRxuhN7\+PZB4DxkXkELhfq9v/oIQAs8Nh8Mf$',
+  '^3hY0V8oHrnqgB0m9mJk1m4C9cA4D2yQ0Gzq0sXo3sF4=$',
+]
+
+[[allowlists]]
+condition = "AND"
+paths = ['^config/test\.exs$']
+regexes = [
+  '^o73WlGJYOwnkaLNY05tyqT0KGrDLKfxGy9B\+5a5f3v44VV3etktAovYJxsI9cGD3$',
+  '^q3y8Qy3c8Ghw4mKxk8ZQ3Cqv7P0mW1sV9tYbN2aD5eM=$',
+]

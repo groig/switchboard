@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""Check the actual outgoing history, including files deleted before the tip."""
+import re
+import shlex
+import subprocess
+import sys
+from pathlib import Path
+
+
+def git(*args):
+    return subprocess.check_output(["git", *args])
+
+
+def private_file(setting):
+    return Path(git("config", "--path", "--get", setting).decode().strip()).read_bytes()
+
+
+def environment_values(data):
+    values = set()
+    for line in data.decode().splitlines():
+        fields = shlex.split(line, comments=True)
+        if fields[:1] == ["export"]:
+            fields = fields[1:]
+        if not fields:
+            continue
+        if len(fields) != 1 or not re.fullmatch(r"[A-Za-z_]\w*=.*", fields[0]):
+            sys.exit("Unsupported assignment in private environment file.")
+        value = fields[0].partition("=")[2]
+        if value:
+            values.add(value.encode())
+    if not values:
+        sys.exit("Private environment file contains no values.")
+    return values
+
+
+def main():
+    patterns = private_file("switchboard.denylist").splitlines()
+    if not patterns or not all(patterns):
+        sys.exit("Supply a nonempty denylist with one expression per line.")
+    deny = re.compile(b"|".join(patterns), re.I | re.M)
+    values = environment_values(private_file("switchboard.privateEnv"))
+
+    def check(data, location):
+        if deny.search(data) or any(value in data for value in values):
+            sys.exit(f"Private content found in {location}.")
+
+    public_identity = subprocess.run(
+        ["git", "config", "--get", "switchboard.publicIdentity"], stdout=subprocess.PIPE
+    ).stdout.rstrip(b"\n")
+
+    scanned = set()
+    for line in sys.stdin.buffer:
+        local_ref, tip, remote_ref, base = line.split()
+        if not tip.strip(b"0"):
+            continue
+        check(local_ref + b"\n" + remote_ref, "ref name")
+        if git("cat-file", "-t", tip).strip() == b"tag":
+            check(git("cat-file", "-p", tip), "tag")
+        revision = tip.decode() + "^{commit}"
+        if base.strip(b"0") and subprocess.run(
+            ["git", "cat-file", "-e", base], stderr=subprocess.DEVNULL
+        ).returncode == 0:
+            revision = base.decode() + ".." + revision
+        for commit in git("rev-list", revision).splitlines():
+            header, _, message = git("cat-file", "commit", commit).partition(b"\n\n")
+            for field in header.splitlines():
+                role, _, value = field.partition(b" ")
+                if role in (b"author", b"committer") and public_identity:
+                    identity, timestamp, zone = value.rsplit(b" ", 2)
+                    if identity == public_identity:
+                        field = b" ".join((role, timestamp, zone))
+                check(field, "commit header")
+            check(message, "commit message")
+            for entry in git("ls-tree", "-rz", commit).split(b"\0"):
+                if not entry:
+                    continue
+                metadata, path = entry.split(b"\t", 1)
+                _, kind, oid = metadata.split()
+                check(path, "tracked filename")
+                if kind == b"blob" and oid not in scanned:
+                    check(git("cat-file", "blob", oid), "blob " + oid[:12].decode())
+                    scanned.add(oid)
+        subprocess.run(
+            ["gitleaks", "git", "--redact", "--no-banner", "--log-opts=--full-history -m " + revision, "."],
+            check=True,
+        )
+
+
+if __name__ == "__main__":
+    try:
+        main()
+    except (OSError, ValueError, re.error, subprocess.CalledProcessError):
+        sys.exit("Pre-push check failed. Verify the local hook configuration and scanner.")

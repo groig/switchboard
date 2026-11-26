@@ -1,0 +1,75 @@
+<Layouts.auth flash={@flash} width="28rem">
+  <div class="mb-5 flex items-center gap-3">
+    <div class="flex size-10 items-center justify-center rounded-lg bg-accent-soft text-accent-fg">
+      <.icon name="hero-cpu-chip" class="size-5" />
+    </div>
+    <div class="min-w-0">
+      <h1 class="text-lg font-semibold text-fg">
+        {gettext("Connect %{client}?", client: @client_name)}
+      </h1>
+      <p class="text-sm text-fg-muted">
+        {gettext("Signed in as %{username}", username: @user.username)}
+      </p>
+    </div>
+  </div>
+
+  <p class="text-base text-fg-muted">
+    {gettext(
+      "The client will be able to call Switchboard tools as you, with your own permissions in each system you connected. Write tools always ask you first."
+    )}
+  </p>
+
+  <div
+    :if={@request.client.kind == "dcr"}
+    id="consent-unverified"
+    class="mt-4 flex gap-2 rounded-lg bg-warning-soft px-3 py-2.5 text-sm text-warning-fg"
+  >
+    <.icon name="hero-exclamation-triangle-mini" class="mt-0.5 size-4 shrink-0" />
+    <span>
+      {gettext(
+        "This client registered itself, so its name is not verified. Allow it only if you just started the connection yourself."
+      )}
+    </span>
+  </div>
+
+  <dl
+    id="consent-details"
+    class="mt-5 divide-y divide-border rounded-lg border border-border text-sm"
+  >
+    <div class="flex gap-4 px-3 py-2.5">
+      <dt class="w-24 shrink-0 text-fg-subtle">{gettext("Client")}</dt>
+      <dd id="consent-client-id" class="min-w-0 font-mono text-xs break-all text-fg">
+        {@request.client_id}
+      </dd>
+    </div>
+    <div class="flex gap-4 px-3 py-2.5">
+      <dt class="w-24 shrink-0 text-fg-subtle">{gettext("Returns to")}</dt>
+      <dd id="consent-redirect-host" class="font-mono text-xs text-fg">{@redirect_host}</dd>
+    </div>
+  </dl>
+
+  <form id="consent-form" method="post" action={~p"/oauth/authorize"} class="mt-6 flex gap-2">
+    <input type="hidden" name="_csrf_token" value={get_csrf_token()} />
+    <input :for={{k, v} <- @params} type="hidden" name={k} value={v} />
+    <.button
+      id="consent-deny"
+      type="submit"
+      name="decision"
+      value="deny"
+      variant="secondary"
+      class="flex-1"
+    >
+      {gettext("Deny")}
+    </.button>
+    <.button
+      id="consent-approve"
+      type="submit"
+      name="decision"
+      value="approve"
+      variant="primary"
+      class="flex-1"
+    >
+      {gettext("Allow")}
+    </.button>
+  </form>
+</Layouts.auth>

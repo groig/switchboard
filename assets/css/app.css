@@ -1,0 +1,564 @@
+/* Switchboard design system (shared with a sibling Phoenix app).
+ *
+ * Tokens live in @theme (light values) and are redefined for dark under
+ * [data-theme=dark]. Components are HEEx functions using these tokens through
+ * Tailwind utilities; the few things utilities can't express well (native
+ * dialogs, @starting-style entries, view transitions, skeleton shimmer) live
+ * in the component layer below. The style guide at /dev/design shows it all.
+ */
+
+@import "tailwindcss" source(none);
+@import "phoenix-colocated/switchboard/colocated.css";
+@source "../css";
+@source "../js";
+@source "../../lib/switchboard_web";
+/* Required for Tailwind to automatically pick up changes in colocated CSS files in dev */
+@source "../../_build/dev/phoenix-colocated/switchboard/*/";
+
+/* A Tailwind plugin that makes "hero-#{ICON}" classes available.
+   The heroicons installation itself is managed by your mix.exs */
+@plugin "../vendor/heroicons";
+
+/* Add variants based on LiveView classes */
+@custom-variant phx-click-loading (.phx-click-loading&, .phx-click-loading &);
+@custom-variant phx-submit-loading (.phx-submit-loading&, .phx-submit-loading &);
+@custom-variant phx-change-loading (.phx-change-loading&, .phx-change-loading &);
+
+/* Theme is set on <html data-theme> before first paint (see root layout). */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Sidebar collapsed to an icon rail (desktop), persisted in localStorage. */
+@custom-variant sidebar-collapsed (&:where([data-sidebar=collapsed], [data-sidebar=collapsed] *));
+
+/* ---------------------------------------------------------------- Fonts */
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/InterVariable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "Inter";
+  src: url("/fonts/InterVariable-Italic.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: italic;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Regular.woff2") format("woff2");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
+
+@font-face {
+  font-family: "JetBrains Mono";
+  src: url("/fonts/JetBrainsMono-Medium.woff2") format("woff2");
+  font-weight: 500 700;
+  font-style: normal;
+  font-display: swap;
+}
+
+/* --------------------------------------------------------------- Tokens */
+
+@theme {
+  /* Only our palette exists: no stray Tailwind colours in templates. */
+  --color-*: initial;
+  --color-white: #fff;
+  --color-black: #000;
+
+  /* Surfaces, back to front. Neutral, slightly warm (hue ~75). */
+  --color-canvas: oklch(99.4% 0.0015 75);
+  --color-sidebar: oklch(97.6% 0.003 75);
+  --color-surface: oklch(100% 0 0);
+  --color-raised: oklch(100% 0 0);
+  --color-inset: oklch(97.2% 0.003 75);
+
+  /* Interactive fills: hover, then pressed / selected. */
+  --color-hover: oklch(95.6% 0.0035 75);
+  --color-active: oklch(93% 0.004 75);
+
+  /* Text */
+  --color-fg: oklch(25% 0.006 70);
+  --color-fg-muted: oklch(48% 0.008 70);
+  --color-fg-subtle: oklch(62% 0.007 70);
+  --color-fg-faint: oklch(75% 0.006 70);
+
+  /* Lines */
+  --color-border: oklch(92% 0.004 75);
+  --color-border-strong: oklch(86.5% 0.005 75);
+  --color-ring: oklch(56% 0.17 268 / 0.55);
+
+  /* The one accent: a calm indigo. */
+  --color-accent: oklch(52% 0.17 268);
+  --color-accent-hover: oklch(47% 0.17 268);
+  --color-accent-soft: oklch(95.5% 0.025 268);
+  --color-accent-fg: oklch(45% 0.16 268);
+  --color-on-accent: oklch(99% 0.005 268);
+
+  /* Semantic */
+  --color-success: oklch(56% 0.13 155);
+  --color-success-soft: oklch(95.5% 0.035 155);
+  --color-success-fg: oklch(45% 0.11 155);
+  --color-warning: oklch(72% 0.15 70);
+  --color-warning-soft: oklch(96.5% 0.04 85);
+  --color-warning-fg: oklch(50% 0.12 60);
+  --color-danger: oklch(56% 0.2 25);
+  --color-danger-hover: oklch(51% 0.2 25);
+  --color-danger-soft: oklch(96% 0.025 25);
+  --color-danger-fg: oklch(50% 0.19 25);
+
+  /* Avatar hues (initials avatars; used as text colour + tinted background). */
+  --color-avatar-slate: oklch(52% 0.03 255);
+  --color-avatar-red: oklch(56% 0.18 25);
+  --color-avatar-orange: oklch(62% 0.16 50);
+  --color-avatar-amber: oklch(64% 0.14 80);
+  --color-avatar-green: oklch(56% 0.13 150);
+  --color-avatar-teal: oklch(56% 0.1 190);
+  --color-avatar-blue: oklch(55% 0.15 245);
+  --color-avatar-indigo: oklch(52% 0.17 268);
+  --color-avatar-violet: oklch(54% 0.18 300);
+  --color-avatar-pink: oklch(58% 0.18 350);
+
+  /* Type */
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+
+  --text-2xs: 0.6875rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.75rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.8125rem;
+  --text-sm--line-height: 1.25rem;
+  --text-base: 0.875rem;
+  --text-base--line-height: 1.375rem;
+  --text-md: 0.9375rem;
+  --text-md--line-height: 1.5rem;
+  --text-lg: 1.0625rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.25rem;
+  --text-xl--line-height: 1.75rem;
+  --text-xl--letter-spacing: -0.01em;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 2rem;
+  --text-2xl--letter-spacing: -0.015em;
+  --text-3xl: 1.875rem;
+  --text-3xl--line-height: 2.25rem;
+  --text-3xl--letter-spacing: -0.02em;
+
+  /* Radii: small and consistent. */
+  --radius-xs: 0.1875rem;
+  --radius-sm: 0.25rem;
+  --radius-md: 0.375rem;
+  --radius-lg: 0.5rem;
+  --radius-xl: 0.75rem;
+
+  /* Shadows: very soft and layered. */
+  --shadow-xs: 0 1px 1px oklch(20% 0.01 70 / 0.04);
+  --shadow-sm: 0 1px 2px oklch(20% 0.01 70 / 0.05), 0 1px 1px oklch(20% 0.01 70 / 0.03);
+  --shadow-md:
+    0 1px 2px oklch(20% 0.01 70 / 0.04), 0 4px 10px -2px oklch(20% 0.01 70 / 0.07);
+  --shadow-lg:
+    0 0 0 1px oklch(20% 0.01 70 / 0.05), 0 2px 4px oklch(20% 0.01 70 / 0.04),
+    0 12px 28px -6px oklch(20% 0.01 70 / 0.14);
+  --shadow-xl:
+    0 0 0 1px oklch(20% 0.01 70 / 0.05), 0 4px 8px oklch(20% 0.01 70 / 0.05),
+    0 24px 56px -12px oklch(20% 0.01 70 / 0.22);
+
+  /* Motion: easings (durations are plain vars below so reduced-motion can zero them). */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in: cubic-bezier(0.7, 0, 0.84, 0);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --ease-spring: cubic-bezier(0.34, 1.36, 0.64, 1);
+
+  --animate-shimmer: shimmer 1.6s var(--ease-in-out) infinite;
+  --animate-pulse-dot: pulse-dot 2s var(--ease-in-out) infinite;
+  --animate-fade-in: fade-in var(--duration-base) var(--ease-out) both;
+
+  @keyframes shimmer {
+    from { background-position: 150% 0; }
+    to { background-position: -50% 0; }
+  }
+
+  @keyframes pulse-dot {
+    0%, 100% { box-shadow: 0 0 0 0 color-mix(in oklab, currentColor 45%, transparent); }
+    60% { box-shadow: 0 0 0 5px transparent; }
+  }
+
+  @keyframes fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+}
+
+@layer base {
+  :root {
+    color-scheme: light;
+
+    /* Motion durations */
+    --duration-fast: 120ms;
+    --duration-base: 200ms;
+    --duration-slow: 320ms;
+
+    /* Layout */
+    --sidebar-width: 15rem;
+    --sidebar-rail: 3.25rem;
+    --topbar-height: 2.875rem;
+  }
+
+  [data-theme="dark"] {
+    color-scheme: dark;
+
+    --color-canvas: oklch(19.5% 0.004 70);
+    --color-sidebar: oklch(17.5% 0.004 70);
+    --color-surface: oklch(22% 0.005 70);
+    --color-raised: oklch(24.5% 0.006 70);
+    --color-inset: oklch(17% 0.004 70);
+
+    --color-hover: oklch(26.5% 0.006 70);
+    --color-active: oklch(30.5% 0.007 70);
+
+    --color-fg: oklch(94% 0.004 80);
+    --color-fg-muted: oklch(73% 0.006 80);
+    --color-fg-subtle: oklch(59% 0.006 80);
+    --color-fg-faint: oklch(44% 0.006 80);
+
+    --color-border: oklch(28.5% 0.006 70);
+    --color-border-strong: oklch(35% 0.007 70);
+    --color-ring: oklch(70% 0.14 268 / 0.6);
+
+    --color-accent: oklch(64% 0.15 268);
+    --color-accent-hover: oklch(69% 0.14 268);
+    --color-accent-soft: oklch(30% 0.06 268);
+    --color-accent-fg: oklch(80% 0.1 268);
+    --color-on-accent: oklch(99% 0.005 268);
+
+    --color-success: oklch(66% 0.13 155);
+    --color-success-soft: oklch(29% 0.05 155);
+    --color-success-fg: oklch(80% 0.12 155);
+    --color-warning: oklch(76% 0.14 75);
+    --color-warning-soft: oklch(31% 0.05 75);
+    --color-warning-fg: oklch(84% 0.12 80);
+    --color-danger: oklch(63% 0.19 25);
+    --color-danger-hover: oklch(68% 0.18 25);
+    --color-danger-soft: oklch(30% 0.07 25);
+    --color-danger-fg: oklch(80% 0.12 25);
+
+    --color-avatar-slate: oklch(76% 0.03 255);
+    --color-avatar-red: oklch(76% 0.13 25);
+    --color-avatar-orange: oklch(79% 0.12 55);
+    --color-avatar-amber: oklch(83% 0.12 85);
+    --color-avatar-green: oklch(78% 0.12 150);
+    --color-avatar-teal: oklch(79% 0.09 190);
+    --color-avatar-blue: oklch(77% 0.11 245);
+    --color-avatar-indigo: oklch(77% 0.11 268);
+    --color-avatar-violet: oklch(78% 0.12 300);
+    --color-avatar-pink: oklch(79% 0.12 350);
+
+    --shadow-xs: 0 1px 1px oklch(0% 0 0 / 0.25);
+    --shadow-sm: 0 1px 2px oklch(0% 0 0 / 0.3), inset 0 1px 0 oklch(100% 0 0 / 0.03);
+    --shadow-md: 0 1px 2px oklch(0% 0 0 / 0.3), 0 4px 12px -2px oklch(0% 0 0 / 0.35);
+    --shadow-lg:
+      0 0 0 1px oklch(100% 0 0 / 0.06), 0 2px 4px oklch(0% 0 0 / 0.3),
+      0 12px 28px -6px oklch(0% 0 0 / 0.5);
+    --shadow-xl:
+      0 0 0 1px oklch(100% 0 0 / 0.07), 0 4px 8px oklch(0% 0 0 / 0.3),
+      0 24px 56px -12px oklch(0% 0 0 / 0.6);
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    :root {
+      --duration-fast: 0ms;
+      --duration-base: 0ms;
+      --duration-slow: 0ms;
+    }
+
+    *,
+    *::before,
+    *::after,
+    ::view-transition-group(*),
+    ::view-transition-old(*),
+    ::view-transition-new(*) {
+      animation-duration: 0.01ms !important;
+      animation-iteration-count: 1 !important;
+      transition-duration: 0.01ms !important;
+      scroll-behavior: auto !important;
+    }
+  }
+
+  html {
+    font-family: var(--font-sans);
+    font-feature-settings: "cv11", "ss03";
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    text-rendering: optimizeLegibility;
+    background: var(--color-canvas);
+    color: var(--color-fg);
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  body {
+    font-size: var(--text-base);
+    line-height: var(--text-base--line-height);
+    min-height: 100dvh;
+  }
+
+  ::selection {
+    background: color-mix(in oklab, var(--color-accent) 24%, transparent);
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-ring);
+    outline-offset: 2px;
+  }
+
+  /* Thin, quiet scrollbars */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--color-border-strong) transparent;
+  }
+
+  code,
+  kbd,
+  samp,
+  pre {
+    font-family: var(--font-mono);
+    font-size: 0.92em;
+  }
+
+  /* Make LiveView wrapper divs transparent for layout */
+  [data-phx-session],
+  [data-phx-teleported-src] {
+    display: contents;
+  }
+
+  /* Calm theme switch: no transition storm when data-theme flips. */
+  [data-theme-switching] *,
+  [data-theme-switching] *::before,
+  [data-theme-switching] *::after {
+    transition: none !important;
+  }
+}
+
+/* ----------------------------------------------------------- Components */
+
+@layer components {
+  /* Native <dialog> as modal and side sheet. Opened with showModal() so we get
+     focus trapping, Esc and the top layer for free; animated with
+     @starting-style and allow-discrete. */
+  .ui-dialog {
+    margin: auto;
+    max-height: min(85dvh, 48rem);
+    width: min(calc(100vw - 2rem), var(--dialog-width, 32rem));
+    border-radius: var(--radius-xl);
+    background: var(--color-raised);
+    color: var(--color-fg);
+    box-shadow: var(--shadow-xl);
+    opacity: 0;
+    transform: translateY(6px) scale(0.985);
+    transition:
+      opacity var(--duration-base) var(--ease-out),
+      transform var(--duration-base) var(--ease-out),
+      overlay var(--duration-base) allow-discrete,
+      display var(--duration-base) allow-discrete;
+  }
+
+  .ui-dialog[open] {
+    opacity: 1;
+    transform: none;
+  }
+
+  @starting-style {
+    .ui-dialog[open] {
+      opacity: 0;
+      transform: translateY(6px) scale(0.985);
+    }
+  }
+
+  .ui-dialog::backdrop {
+    background: oklch(18% 0.01 70 / 0);
+    transition:
+      background-color var(--duration-base) var(--ease-out),
+      overlay var(--duration-base) allow-discrete,
+      display var(--duration-base) allow-discrete;
+  }
+
+  .ui-dialog[open]::backdrop {
+    background: oklch(18% 0.01 70 / 0.32);
+  }
+
+  [data-theme="dark"] .ui-dialog[open]::backdrop {
+    background: oklch(5% 0 0 / 0.55);
+  }
+
+  @starting-style {
+    .ui-dialog[open]::backdrop {
+      background: oklch(18% 0.01 70 / 0);
+    }
+  }
+
+  .ui-dialog.ui-sheet {
+    margin: 0 0 0 auto;
+    height: 100dvh;
+    max-height: 100dvh;
+    width: min(100vw, var(--dialog-width, 28rem));
+    border-radius: var(--radius-xl) 0 0 var(--radius-xl);
+    transform: translateX(24px);
+  }
+
+  .ui-dialog.ui-sheet[open] {
+    transform: none;
+  }
+
+  @starting-style {
+    .ui-dialog.ui-sheet[open] {
+      opacity: 0;
+      transform: translateX(24px);
+    }
+  }
+
+  .ui-dialog.ui-palette {
+    margin-top: min(14dvh, 8rem);
+    --dialog-width: 38rem;
+  }
+
+  /* Toasts and other list items slide in when they appear. */
+  .ui-enter {
+    transition:
+      opacity var(--duration-base) var(--ease-out),
+      transform var(--duration-slow) var(--ease-spring);
+  }
+
+  @starting-style {
+    .ui-enter {
+      opacity: 0;
+      transform: translateY(8px) scale(0.98);
+    }
+  }
+
+  .ui-enter-row {
+    transition:
+      opacity var(--duration-slow) var(--ease-out),
+      background-color var(--duration-slow) var(--ease-out);
+  }
+
+  @starting-style {
+    .ui-enter-row {
+      opacity: 0;
+      background-color: var(--color-accent-soft);
+    }
+  }
+
+  /* Skeletons: a soft sweep, never a spinner. */
+  .ui-skeleton {
+    background: linear-gradient(
+        90deg,
+        var(--color-hover) 0%,
+        var(--color-active) 50%,
+        var(--color-hover) 100%
+      )
+      0 0 / 200% 100%;
+    animation: var(--animate-shimmer);
+    border-radius: var(--radius-md);
+  }
+
+  /* Loading buttons: a shimmer sweeps across while the request is in flight. */
+  .ui-btn {
+    position: relative;
+    overflow: hidden;
+  }
+
+  .ui-btn::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    pointer-events: none;
+    background: linear-gradient(
+        100deg,
+        transparent 20%,
+        color-mix(in oklab, currentColor 18%, transparent) 50%,
+        transparent 80%
+      )
+      0 0 / 200% 100%;
+    transition: opacity var(--duration-fast) var(--ease-out);
+  }
+
+  .ui-btn[data-loading],
+  .ui-btn.phx-click-loading,
+  .phx-submit-loading .ui-btn[type="submit"] {
+    pointer-events: none;
+    cursor: progress;
+  }
+
+  .ui-btn[data-loading]::after,
+  .ui-btn.phx-click-loading::after,
+  .phx-submit-loading .ui-btn[type="submit"]::after {
+    opacity: 1;
+    animation: var(--animate-shimmer);
+  }
+
+  /* Tooltips: pure CSS, shown on hover (after a beat) and keyboard focus. */
+  .ui-tooltip {
+    position: absolute;
+    z-index: 60;
+    pointer-events: none;
+    white-space: nowrap;
+    opacity: 0;
+    transform: translateY(2px);
+    transition:
+      opacity var(--duration-fast) var(--ease-out),
+      transform var(--duration-fast) var(--ease-out);
+  }
+
+  .ui-has-tooltip:hover > .ui-tooltip {
+    opacity: 1;
+    transform: none;
+    transition-delay: 400ms;
+  }
+
+  .ui-has-tooltip:has(:focus-visible) > .ui-tooltip {
+    opacity: 1;
+    transform: none;
+  }
+
+  /* Hide tooltips while a dropdown in the same wrapper is open. */
+  .ui-has-tooltip:has([data-open]) > .ui-tooltip {
+    display: none;
+  }
+}
+
+/* -------------------------------------------------------- View transitions */
+
+/* Live navigation cross-fades the main pane only; the shell stays put.
+   (Only enabled on navigation, see onDocumentPatch in app.js.) */
+::view-transition-old(main) {
+  animation: vt-out var(--duration-fast) var(--ease-in) both;
+}
+
+::view-transition-new(main) {
+  animation: vt-in var(--duration-base) var(--ease-out) both;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation: none;
+}
+
+@keyframes vt-out {
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+}

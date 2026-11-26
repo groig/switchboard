@@ -1,0 +1,10 @@
+<Layouts.auth flash={@flash}>
+  <div class="mb-3 flex items-center gap-2 text-danger-fg">
+    <.icon name="hero-exclamation-circle" class="size-5" />
+    <h1 class="text-lg font-semibold">{gettext("Authorization error")}</h1>
+  </div>
+  <p id="oauth-error" class="text-base text-fg-muted">{@message}</p>
+  <p class="mt-4 text-sm text-fg-subtle">
+    {assigns[:hint] || gettext("Start the connection again from your MCP client.")}
+  </p>
+</Layouts.auth>

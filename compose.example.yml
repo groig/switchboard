@@ -1,0 +1,78 @@
+# Switchboard: app + Postgres. Copy next to a .env file and adapt.
+#
+# A reverse proxy (Caddy, for example) terminates TLS and proxies to 127.0.0.1:19300. Restrict
+# /admin* and /dev* to a private network there (and with ADMIN_NETWORKS below). Stream
+# responses: don't buffer text/event-stream.
+#
+#   cp .env.example .env     # fill in every variable listed in the README
+#   docker compose -f compose.example.yml up -d
+
+name: switchboard
+
+services:
+  app:
+    # Deploy the digest you reviewed, not a moving tag:
+    #   image: ghcr.io/groig/switchboard@sha256:<digest>
+    image: ghcr.io/groig/switchboard:${SWITCHBOARD_TAG:?set SWITCHBOARD_TAG (e.g. sha-0123abc)}
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file: .env
+    environment:
+      DATABASE_URL: ecto://switchboard:${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}@db/switchboard
+      PORT: "4000"
+      # Only the proxy may set X-Forwarded-For. With the port published on loopback, Docker's
+      # proxy connects from the bridge gateway; set this to that address (or the bridge subnet).
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:?set TRUSTED_PROXIES}
+    ports:
+      - "127.0.0.1:19300:4000"
+    networks: [switchboard, releases]
+    # Containment: read-only root filesystem (the release writes only to /tmp), no
+    # capabilities, no privilege escalation, bounded memory, CPU and processes.
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${APP_MEMORY:-1g}
+    cpus: ${APP_CPUS:-2}
+    pids_limit: 256
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:4000/healthz"]
+      interval: 30s
+      timeout: 5s
+      start_period: 40s
+      retries: 3
+
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: switchboard
+      POSTGRES_USER: switchboard
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+    volumes:
+      - db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U switchboard -d switchboard"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    networks: [switchboard]
+    security_opt:
+      - no-new-privileges:true
+    mem_limit: ${DB_MEMORY:-1g}
+    pids_limit: 256
+    shm_size: 128m
+
+volumes:
+  db:
+
+networks:
+  switchboard:
+  # The network the releases feed (RELEASES_URL) is reachable on.
+  releases:
+    external: true
+    name: ${RELEASES_NETWORK:?set RELEASES_NETWORK}
