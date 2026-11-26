@@ -71,6 +71,11 @@ defmodule Switchboard.Upstreams do
   end
 
   defp do_request(system, opts, base_url) do
+    cap =
+      if system == :outline and opts[:url] == "/api/documents.search",
+        do: 8_000_000,
+        else: @max_body
+
     req =
       Req.new(
         [
@@ -82,7 +87,7 @@ defmodule Switchboard.Upstreams do
           redirect: false,
           decode_body: false,
           headers: [accept: "application/json", user_agent: "Switchboard"],
-          into: &collect_capped/2
+          into: &collect_capped(&1, &2, cap)
         ] ++ (Application.get_env(:switchboard, __MODULE__, [])[:req_options] || [])
       )
 
@@ -108,10 +113,10 @@ defmodule Switchboard.Upstreams do
   defp telemetry_outcome({:error, reason}) when is_atom(reason), do: reason
   defp telemetry_outcome({:error, _}), do: :transport
 
-  defp collect_capped({:data, data}, {req, resp}) do
+  defp collect_capped({:data, data}, {req, resp}, cap) do
     body = [resp.body || "" | data]
 
-    if IO.iodata_length(body) > @max_body do
+    if IO.iodata_length(body) > cap do
       {:halt, {req, %{resp | body: [], private: Map.put(resp.private, :too_large, true)}}}
     else
       {:cont, {req, %{resp | body: body}}}
@@ -216,7 +221,9 @@ defmodule Switchboard.Upstreams do
   def body({:ok, %Req.Response{status: status, body: body}}) when status in 200..299,
     do: {:ok, body}
 
-  def body({:ok, %Req.Response{status: status}}) when status in [401, 403],
+  def body({:ok, %Req.Response{status: 403}}), do: {:error, :forbidden}
+
+  def body({:ok, %Req.Response{status: 401}}),
     do: {:error, :unauthorized}
 
   def body({:ok, %Req.Response{status: 404}}), do: {:error, :not_found}
@@ -248,6 +255,9 @@ defmodule Switchboard.Upstreams do
 
       :unauthorized ->
         "#{name} rejected your key. Link it again at #{connect}"
+
+      :forbidden ->
+        "#{name} denied access to this resource. Check your account permissions."
 
       :not_found ->
         "#{name}: not found, or you don't have access."

@@ -56,7 +56,7 @@ defmodule Switchboard.Tools.DocsRead do
          {:ok, cred} <- cred(scope, :outline) do
       doc_id = Outline.document_id(id)
 
-      case Outline.info(cred, doc_id) do
+      case Outline.info(cred, String.trim(id)) do
         {:ok, doc} ->
           pages = max(1, ceil(String.length(doc["text"]) / @page_size))
           page = min(page, pages)
@@ -68,8 +68,10 @@ defmodule Switchboard.Tools.DocsRead do
            "## #{cell(doc["title"], 200)}\n\nPage #{page} of #{pages} · updated #{Markdown.date(doc["updated_at"])} · #{doc["url"]}\n\n" <>
              untrusted(text, "outline", doc: doc_id) <> next}
 
-        {:error, :not_found} ->
-          {:error, "No wiki document #{doc_id}, or you can't see it."}
+        {:error, reason}
+        when reason in [:invalid_document_url, :forbidden, :not_found, {:status, 400}] ->
+          {:error,
+           "Outline could not open that document. Use docs_search and pass the document ID it returns."}
 
         {:error, reason} ->
           {:error, problem(:outline, reason)}

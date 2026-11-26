@@ -52,11 +52,11 @@ defmodule Switchboard.Tools.DocsSearch do
     with {:ok, limit} <- int_arg(args, "limit", 8, 1, 20),
          true <- String.trim(query) != "" || {:error, "query must not be empty"},
          {:ok, cred} <- cred(scope, :outline) do
-      case Outline.search(cred, String.trim(query), limit: limit) do
-        {:ok, []} ->
+      case search(cred, String.trim(query), limit) do
+        {:ok, [], _} ->
           {:ok, "Nothing in the wiki matches \"#{cell(query)}\"."}
 
-        {:ok, hits} ->
+        {:ok, hits, used_limit} ->
           items =
             hits
             |> Enum.with_index(1)
@@ -70,11 +70,25 @@ defmodule Switchboard.Tools.DocsSearch do
                  |> then(&("   " <> &1)))
             end)
 
-          {:ok, "## Wiki: \"#{cell(query)}\"\n\n" <> items}
+          note =
+            if used_limit < limit,
+              do:
+                "\n\nReduced the requested limit from #{limit} to #{used_limit} to fit the response.",
+              else: ""
+
+          {:ok, "## Wiki: \"#{cell(query)}\"\n\n" <> items <> note}
 
         {:error, reason} ->
           {:error, problem(:outline, reason)}
       end
+    end
+  end
+
+  defp search(cred, query, limit) do
+    case Outline.search(cred, query, limit: limit) do
+      {:error, :too_large} when limit > 1 -> search(cred, query, div(limit, 2))
+      {:ok, hits} -> {:ok, hits, limit}
+      error -> error
     end
   end
 end

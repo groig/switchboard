@@ -60,6 +60,16 @@ defmodule Switchboard.ReadToolsTest do
                Tools.run(scope, "plane_get_item", %{"id" => "nope"})
     end
 
+    test "Plane distinguishes forbidden items from rejected credentials", %{scope: scope} do
+      stub(%{"plane.test" => {:status, 403}})
+      assert {:error, denied} = Tools.run(scope, "plane_get_item", %{"id" => "DEMO-12"})
+      assert denied =~ "denied access"
+      assert denied =~ "/DEMO-12"
+      stub(%{"plane.test" => {:status, 401}})
+      assert {:error, rejected} = Tools.run(scope, "plane_get_item", %{"id" => "DEMO-12"})
+      assert rejected =~ "Link it again"
+    end
+
     test "plane_search", %{scope: scope} do
       stub()
 
@@ -152,6 +162,47 @@ defmodule Switchboard.ReadToolsTest do
   end
 
   describe "Outline" do
+    test "reads share URLs through the configured authenticated API", %{scope: scope} do
+      stub(%{
+        "outline.test" => fn conn ->
+          assert conn.request_path == "/api/documents.info"
+          assert Plug.Conn.get_req_header(conn, "authorization") == ["Bearer ol-key"]
+          assert conn.private.json_body == %{"shareId" => "shared-example"}
+          Req.Test.json(conn, %{data: %{title: "Shared document", text: "A shared page"}})
+        end
+      })
+
+      assert run!(scope, "docs_read", %{"id" => "http://outline.test/s/shared-example?ref=link"}) =~
+               "A shared page"
+
+      assert {:error, hint} =
+               Tools.run(scope, "docs_read", %{"id" => "http://other.test/s/shared-example"})
+
+      assert hint =~ "docs_search"
+    end
+
+    test "oversized Outline search retries with fewer results and accepts more than 2 MB", %{
+      scope: scope
+    } do
+      stub(%{
+        "outline.test" => fn conn ->
+          size =
+            case conn.private.json_body["limit"] do
+              2 -> 8_000_001
+              1 -> 2_000_001
+            end
+
+          Req.Test.json(conn, %{
+            data: [%{document: %{title: "Large result", text: String.duplicate("x", size)}}]
+          })
+        end
+      })
+
+      md = run!(scope, "docs_search", %{"query" => "large", "limit" => 2})
+      assert md =~ "Large result"
+      assert md =~ "from 2 to 1"
+    end
+
     test "docs_search and paged docs_read (by id or URL)", %{scope: scope} do
       stub()
       md = run!(scope, "docs_search", %{"query" => "deploy"})

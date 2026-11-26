@@ -39,7 +39,8 @@ defmodule Switchboard.Outline do
 
   @doc "A document by UUID or urlId: `%{title, url, text, updated_at}` (text is Markdown)."
   def info(cred, id) do
-    with {:ok, %{"data" => doc}} <- post(cred, "documents.info", %{id: id}) do
+    with {:ok, params} <- document_params(id),
+         {:ok, %{"data" => doc}} <- post(cred, "documents.info", params) do
       {:ok,
        %{
          "title" => doc["title"],
@@ -79,6 +80,27 @@ defmodule Switchboard.Outline do
     case Regex.run(~r"/doc/(?:[^/?#]*-)?([A-Za-z0-9]{10})(?:[/?#]|$)", input) do
       [_, id] -> id
       _ -> String.trim(input)
+    end
+  end
+
+  defp document_params(input) do
+    uri = URI.parse(input)
+    base = URI.parse(Upstreams.base_url(:outline))
+
+    cond do
+      is_nil(uri.host) && is_nil(uri.scheme) && !String.contains?(input, "/") ->
+        {:ok, %{id: input}}
+
+      {uri.scheme, uri.host, uri.port} != {base.scheme, base.host, base.port} ->
+        {:error, :invalid_document_url}
+
+      true ->
+        case String.split(uri.path || "", "/", trim: true) do
+          ["s", share] -> {:ok, %{shareId: share}}
+          ["doc", _slug] -> {:ok, %{id: document_id(uri.path)}}
+          ["s", share, "doc", slug] -> {:ok, %{shareId: share, id: document_id("/doc/" <> slug)}}
+          _ -> {:error, :invalid_document_url}
+        end
     end
   end
 

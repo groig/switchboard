@@ -122,7 +122,7 @@ Each implements `Switchboard.Upstream` (label, key link, minimum permissions, fo
 | Rocket.Chat 8 | Personal access token + user id, `X-Auth-Token`/`X-User-Id` | `GET /api/v1/me` | Key page: `/account/tokens`. |
 
 `Upstreams.request/3`: `Req` with options from config (`req_options`, so tests use `Req.Test`),
-5 s connect and 10 s receive timeouts, no retries, no redirects, a 2 MB body cap, and JSON decoded
+5 s connect and 10 s receive timeouts, no retries, no redirects, a 2 MB body cap (8 MB for Outline search, which retries oversized results with a smaller limit), and JSON decoded
 only when the response says it is JSON. Every request runs under `Upstreams.Guard`, is noted for the
 tool call's audit row, and emits `[:switchboard, :upstream, :request]` telemetry.
 

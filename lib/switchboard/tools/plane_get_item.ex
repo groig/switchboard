@@ -69,9 +69,18 @@ defmodule Switchboard.Tools.PlaneGetItem do
     with true <- Plane.identifier?(id) || {:error, "id must look like PROJECT-123"},
          {:ok, cred} <- cred(scope, :plane) do
       case Plane.item(cred, id) do
-        {:ok, item} -> {:ok, render(scope, cred, id, item)}
-        {:error, :not_found} -> {:error, "Plane has no work item #{id}, or you can't see it."}
-        {:error, reason} -> {:error, problem(:plane, reason)}
+        {:ok, item} ->
+          {:ok, render(scope, cred, id, item)}
+
+        {:error, :forbidden} ->
+          {:error,
+           "Plane denied access to #{Plane.workspace()}/#{id}. Check the identifier and project access."}
+
+        {:error, :not_found} ->
+          {:error, "Plane has no work item #{id}, or you can't see it."}
+
+        {:error, reason} ->
+          {:error, problem(:plane, reason)}
       end
     end
   end
