@@ -1,9 +1,16 @@
 defmodule Switchboard.MCP.Server do
   @moduledoc """
-  The adapter between `anubis_mcp` and Switchboard's tools. **This is the only module that knows
-  the MCP library**: it turns `Switchboard.Tool` modules into protocol tool definitions and
-  dispatches `tools/call` to `Switchboard.Tools.run/3`. Swapping the library for our own
-  JSON-RPC layer must only touch this module and the router mount.
+  The adapter between `anubis_mcp` and Switchboard's tools and workflows. **This is the only
+  module that knows the MCP library**: it turns `Switchboard.Tool` modules into protocol tool
+  definitions and dispatches `tools/call` to `Switchboard.Tools.run/3`, and turns
+  `Switchboard.Workflow` modules into prompts (slash commands) whose `prompts/get` goes to
+  `Switchboard.Workflows.run/4`. Swapping the library for our own JSON-RPC layer must only touch
+  this module and the router mount.
+
+  anubis has no per-request filter for prompts (as `server_tools/2` is for tools), so the
+  prompts are registered on the frame in `init/2`: on every request in the stateless era, once
+  per session in the 2025-06-18 era. A workflow switched off later in a legacy session stays
+  listed there, and `Workflows.run/4` refuses it.
 
   The caller's `Switchboard.Scope` arrives in the frame assigns (`:current_scope`), put there by
   `SwitchboardWeb.Plugs.MCPAuth` for every HTTP request.
@@ -12,13 +19,13 @@ defmodule Switchboard.MCP.Server do
   use Anubis.Server,
     name: "switchboard",
     version: Mix.Project.config()[:version],
-    capabilities: [:tools]
+    capabilities: [:tools, :prompts, :completion]
 
   alias Anubis.MCP.Error
+  alias Anubis.Server.Component.Prompt
   alias Anubis.Server.Component.Tool
   alias Anubis.Server.Response
-  alias Switchboard.Scope
-  alias Switchboard.Tools
+  alias Switchboard.{RateLimit, Scope, Tools, Workflows}
 
   require Logger
 
@@ -28,7 +35,18 @@ defmodule Switchboard.MCP.Server do
       "MCP initialize from #{inspect(client_info["name"])} #{inspect(client_info["version"])}"
     )
 
-    {:ok, frame}
+    {:ok, register_prompts(frame)}
+  end
+
+  defp register_prompts(frame) do
+    case frame.assigns[:current_scope] do
+      %Scope{} = scope ->
+        prompts = Map.new(Workflows.available(scope), &{&1.name(), to_prompt(&1)})
+        %{frame | prompts: prompts}
+
+      _ ->
+        frame
+    end
   end
 
   @impl true
@@ -54,6 +72,59 @@ defmodule Switchboard.MCP.Server do
       _ ->
         {:error, Error.protocol(:invalid_request, %{message: "unauthenticated"}), frame}
     end
+  end
+
+  @impl true
+  def handle_prompt_get(name, args, frame) do
+    case frame.assigns[:current_scope] do
+      %Scope{} = scope ->
+        case Workflows.run(scope, name, args || %{}, :prompt) do
+          {:ok, text} ->
+            {:reply, Response.prompt(Workflows.description(name)) |> Response.user_message(text),
+             frame}
+
+          {:error, message} ->
+            {:error, Error.execution(message), frame}
+        end
+
+      _ ->
+        {:error, Error.protocol(:invalid_request, %{message: "unauthenticated"}), frame}
+    end
+  end
+
+  # Argument completion for prompts: `task` offers the caller's open Plane items.
+  @impl true
+  def handle_completion(
+        %{"type" => "ref/prompt", "name" => name},
+        %{"name" => arg} = argument,
+        frame
+      ) do
+    values =
+      with %Scope{} = scope <- frame.assigns[:current_scope],
+           :ok <- RateLimit.take({scope.user.id, "completion"}, 60) do
+        Workflows.complete(scope, name, arg, argument["value"] || "")
+      else
+        _ -> []
+      end
+
+    {:reply, Response.completion() |> Response.completion_values(values), frame}
+  end
+
+  def handle_completion(_ref, _argument, frame),
+    do: {:reply, Response.completion() |> Response.completion_values([]), frame}
+
+  defp to_prompt(mod) do
+    %Prompt{
+      name: mod.name(),
+      title: mod.title(),
+      description: mod.description(),
+      arguments:
+        Enum.map(mod.arguments(), fn a ->
+          %{"name" => a.name, "description" => a.description, "required" => a.required}
+        end),
+      # As for tools: Switchboard.Workflows validates; without this the library drops them.
+      validate_input: &{:ok, &1}
+    }
   end
 
   defp to_tool(mod) do

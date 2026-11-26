@@ -10,7 +10,8 @@ defmodule Switchboard.NoSecretsInLogsTest do
     * personal tokens: creation (LiveView) and use;
     * Rocket.Chat writes as the person and as the bot user;
     * Rocket.Chat reads (`chat_inbox`, `chat_read`: message text is private too), watch
-      notices, and the Forgejo webhook (its secret and signature).
+      notices, and the Forgejo webhook (its secret and signature);
+    * team workflows, which read with every linked key (and a DM's text) in one run.
   """
   use SwitchboardWeb.ConnCase, async: false
 
@@ -348,6 +349,84 @@ defmodule Switchboard.NoSecretsInLogsTest do
 
     assert_clean(log)
     refute log =~ "bot-token"
+  end
+
+  test "workflows keep every key and the DMs they prefetch out" do
+    {user, _} = with_log(fn -> user_fixture(%{name: "Log Check"}) end)
+    scope = Scope.for_user(user)
+    private = "private words #{@m}"
+
+    with_log(fn ->
+      for {system, secret} <- [
+            {"plane", %{"token" => secret("plane")}},
+            {"argus", %{"token" => secret("argus")}},
+            {"outline", %{"token" => secret("outline")}},
+            {"rocketchat", %{"token" => secret("rc"), "user_id" => "uLogCheck0000001"}}
+          ] do
+        Repo.insert!(%Connections.Connection{
+          user_id: user.id,
+          system: system,
+          secret: secret,
+          status: "ok",
+          identity: %{"username" => user.username},
+          identity_matches: true
+        })
+      end
+    end)
+
+    message = %{
+      "_id" => "mLogCheck0000002",
+      "rid" => "rLogCheck00000002",
+      "msg" => private,
+      "ts" => DateTime.utc_now() |> DateTime.to_iso8601(),
+      "u" => %{"_id" => "uOther000000001", "username" => "other", "name" => "Other"}
+    }
+
+    chat = fn conn ->
+      case conn.request_path do
+        "/api/v1/subscriptions.get" ->
+          Req.Test.json(conn, %{
+            "update" => [%{"rid" => message["rid"], "t" => "d", "unread" => 1}]
+          })
+
+        "/api/v1/rooms.get" ->
+          Req.Test.json(conn, %{
+            "update" => [
+              %{
+                "_id" => message["rid"],
+                "t" => "d",
+                "uids" => ["a", "b"],
+                "lastMessage" => message
+              }
+            ]
+          })
+
+        _ ->
+          Req.Test.json(conn, %{"user" => %{"username" => "other", "type" => "user"}})
+      end
+    end
+
+    Switchboard.UpstreamStubs.stub(%{"chat.test" => chat})
+
+    log =
+      capture_log([level: :debug], fn ->
+        {:ok, inbox} = Tools.run(scope, "workflow", %{"name" => "inbox"})
+        assert inbox =~ private
+
+        for {name, args} <- [
+              {"standup", %{}},
+              {"next", %{}},
+              {"pickup", %{"task" => "DEMO-12"}},
+              {"triage", %{"issue" => "demo-api/7"}},
+              {"handoff", %{"task" => "DEMO-12"}}
+            ] do
+          {:ok, _} = Switchboard.Workflows.run(scope, name, args)
+        end
+
+        Logger.flush()
+      end)
+
+    assert_clean(log)
   end
 
   test "Rocket.Chat reads, watch notices and the Forgejo webhook keep tokens and message text out" do

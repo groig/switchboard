@@ -15,7 +15,7 @@ agent ──Streamable HTTP + bearer──▶ Caddy ──▶ Switchboard (Phoen
 
 | Layer | Modules | Notes |
 |---|---|---|
-| MCP adapter | `Switchboard.MCP.Server` | The only module that references `anubis_mcp`. Lists tools per caller, forwards calls to `Tools.run/3`. |
+| MCP adapter | `Switchboard.MCP.Server` | The only module that references `anubis_mcp`. Lists tools per caller, forwards calls to `Tools.run/3`; registers workflows as prompts and forwards `prompts/get` to `Workflows.run/4`. |
 | Tools | `Switchboard.Tool`, `Switchboard.Tools`, `Switchboard.Tools.*` | A behaviour plus a registry. `Tools.run/3` is the single policy point (below). |
 | Upstreams | `Switchboard.Upstreams`, `Switchboard.Upstream`, `Switchboard.Upstreams.*` | One adapter per system. All HTTP goes through `Upstreams.request/3`. |
 | Identity | `Switchboard.Accounts`, `Switchboard.Forgejo.Login`, `SwitchboardWeb.UserAuth` | Forgejo sign-in, membership checks, browser sessions. |
@@ -25,6 +25,7 @@ agent ──Streamable HTTP + bearer──▶ Caddy ──▶ Switchboard (Phoen
 | Read path | `Switchboard.Plane`, `.Forgejo`, `.Argus`, `.Outline`, `.Releases`, `Switchboard.Upstreams.Guard`, `Switchboard.FanOut`, `Switchboard.Untrusted` | Read-only API clients, per-upstream limits and breakers, concurrent fan-out (below). |
 | Safety | `Switchboard.Audit`, `Switchboard.Controls`, `Switchboard.RateLimit` | Append-only audit, live kill switches and read-only mode, ETS token buckets. |
 | Watches | `Switchboard.Watches`, `Switchboard.Watches.*` (Oban workers) | "DM me when this finishes" (below). |
+| Workflows | `Switchboard.Workflow`, `Switchboard.Workflows`, `Switchboard.Workflows.*`, `Switchboard.Tools.Workflow` | Team workflows as MCP prompts (slash commands) and as the `workflow` tool (below). |
 
 ### `Tools.run/3`
 
@@ -323,6 +324,66 @@ accepted). So Switchboard uses the two "Action Run" events.
 watches checked in the last 10 s); the check reads Forgejo again with the owner's own token. A
 forged, stale or replayed webhook can at most cause an early check; it can't send a notice or
 reveal a repo. Without the webhook, polling alone works (1 to 5 minutes later).
+
+## Workflows (milestone 6)
+
+Team workflows (`standup`, `next`, `inbox`, `pickup`, `triage`, `handoff`) chain several tools
+into one command. Each is a `Switchboard.Workflow` module; `docs/TOOLS.md` lists what each one
+prefetches and which writes it may propose.
+
+```
+Claude Code: /mcp__switchboard__pickup DEMO-12 ──prompts/get──▶ MCP.Server.handle_prompt_get ─┐
+Codex (no prompts): "let's pick up DEMO-12" ──tools/call workflow──▶ Tools.run ─▶ Tools.Workflow ┤
+                                                                                                ▼
+Workflows.run/4: kill switch (workflow:<name>) · rate limit · argument checks · audit row
+   └─▶ Pickup.build/3 ──▶ Facts.gather (FanOut, 12 s budget, caller's own credentials)
+                            ├─ tool sections: PlaneGetItem, TaskStatus, DocsSearch (their kill switches apply)
+                            └─ own reads: Argus issues mentioning the task
+   └─▶ frame: header · numbered steps · rules (proposable writes, untrusted data, language) · Facts · Notes
+```
+
+- **One text, two ways.** The prompt's single user message and the `workflow` tool's result are
+  the same text (a test compares them). Codex doesn't list prompts (`docs/CLIENTS.md`), so the
+  server instructions name the workflows and tell the agent to use the tool when the user asks in
+  plain words.
+- **Prompt registration.** anubis has no per-request filter for prompts, so `MCP.Server.init/2`
+  puts the enabled workflows on the frame: on every request in the 2026-07-28 era, once per
+  session in the 2025-06-18 era (a workflow switched off mid-session stays listed there, and
+  `Workflows.run/4` refuses it). Prompt arguments go through `validate_input: &{:ok, &1}`, as tool
+  arguments do; `Workflows` checks them (known names, strings, required ones, ≤ 300 characters,
+  then per workflow: `PROJ-123`, `#channel`/`@user`, an Argus issue URL or `project/id`).
+- **Policy.** `Workflows.run/4` mirrors `Tools.run/3`: a kill switch and a rate limit per
+  workflow, stored in `tool_controls` under `workflow:<name>` (10 runs per person per minute by
+  default; the admin Controls page lists them under Workflows), one audit row with action
+  `workflow:<name>` and `args.via` = `prompt` or `tool`, telemetry
+  `[:switchboard, :workflow, :run]`, crashes turned into an error. Through the `workflow` tool,
+  `Tools.run/3` applies the tool's own kill switch, limit and schema first and then leaves the
+  audit row to `Workflows.run/4` (a process flag), so a run is audited once.
+- **Never writes.** A workflow only reads. Its text lists the writes the agent may *propose*,
+  only those whose tools are available right now (none in read-only mode, none that are switched
+  off), and requires one confirmation per write of the exact text and destination.
+- **Prefetch.** `Switchboard.Workflows.Facts` holds the shared reads: open and recently updated
+  Plane items, the person's pull requests with CI and reviews, review requests, PR activity since
+  a date, errors pointing at their changes (`my_work`'s culprit match plus the release triage),
+  the DM count, watches that fired. Sections that reuse a tool's output call the tool module
+  directly (not `Tools.run/3`, which would audit and rate-limit each one) and honour its kill
+  switch. A failed or slow system becomes a note under **Notes**; the rest still renders.
+- **Local code.** The steps lean on the agent running in the developer's checkout: `git log`
+  for the standup, the code and history for `pickup` and `triage`, the diff for `handoff`.
+- **Language.** Instructions to the agent are English; drafts for colleagues (standup, QA
+  message, DM replies) are asked for in the person's `locale`.
+- **Costs.** A `standup` reads each member Plane project once more (recently updated items, one
+  page) on top of the cached `my_items`; `next` and `inbox` reuse `my_items` and the 30 s inbox
+  listing (two Rocket.Chat calls, plus at most 11 for mentions, threads and bot checks); `pickup`
+  and `handoff` read one item (cached) and its project. The `next` DM count costs no extra
+  Rocket.Chat call beyond the listing.
+- **Completion.** `completion/complete` for a `task` argument returns the person's open Plane
+  items (from the cached `my_items`; 60 a minute per person). Claude Code 2.1.325 doesn't ask
+  for completions.
+- **Limits of the data.** Plane's API has no per-person activity feed or @-mention list, so
+  "items I changed" means items assigned to or created by the person that were updated in the
+  window, and `inbox` says Plane mentions may be missing. `triage` finds the repository through the
+  release that first listed the issue (its run URL); without one, the agent uses local history.
 
 ## Releases
 

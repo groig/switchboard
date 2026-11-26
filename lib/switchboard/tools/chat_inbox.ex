@@ -119,6 +119,26 @@ defmodule Switchboard.Tools.ChatInbox do
     end
   end
 
+  @doc """
+  How many DMs wait for the person's answer (the `dms` section's rule), from the same two cached
+  listing calls and without bot checks: `{:ok, count}`, or `{:error, line}`. Used by workflows
+  that only need the number.
+  """
+  def waiting_count(scope, days \\ 7) do
+    since = DateTime.add(DateTime.utc_now(), -days * 86_400)
+
+    with {:ok, cred} <- cred(scope, :rocketchat),
+         {:ok, {subs, rooms}} <- listing(cred, days, since) do
+      {:ok, subs |> Enum.filter(&visible?/1) |> dm_candidates(rooms, cred, since) |> length()}
+    else
+      {:error, reason} when is_atom(reason) or is_tuple(reason) ->
+        {:error, problem(:rocketchat, reason)}
+
+      error ->
+        error
+    end
+  end
+
   # Two calls, cached briefly per key and window.
   defp listing(cred, days, since) do
     key = :crypto.hash(:sha256, cred["token"] <> cred["user_id"]) |> binary_part(0, 8)
@@ -138,24 +158,7 @@ defmodule Switchboard.Tools.ChatInbox do
   ## DMs
 
   defp dms(scope, cred, subs, rooms, since, limit) do
-    me = cred["user_id"]
-    bot_id = Upstreams.config(:rocketchat)[:bot_user_id]
-
-    candidates =
-      for sub <- subs,
-          sub["t"] == "d",
-          room = rooms[sub["rid"]],
-          room != nil,
-          msg = room["lastMessage"],
-          is_map(msg),
-          from = msg["u"] || %{},
-          from["_id"] != me,
-          bot_id in [nil, ""] or (from["_id"] != bot_id and bot_id not in (room["uids"] || [])),
-          is_nil(msg["bot"]),
-          at = RocketChat.ts(msg["ts"]),
-          at != nil and DateTime.compare(at, since) != :lt,
-          do: %{sub: sub, room: room, msg: msg, from: from, at: at}
-
+    candidates = dm_candidates(subs, rooms, cred, since)
     {bots, notes} = bot_senders(cred, candidates)
 
     items =
@@ -179,6 +182,25 @@ defmodule Switchboard.Tools.ChatInbox do
             (shown |> Enum.with_index(1) |> Enum.map_join("\n\n", &dm_item(scope, &1)))
 
     {md, notes}
+  end
+
+  defp dm_candidates(subs, rooms, cred, since) do
+    me = cred["user_id"]
+    bot_id = Upstreams.config(:rocketchat)[:bot_user_id]
+
+    for sub <- subs,
+        sub["t"] == "d",
+        room = rooms[sub["rid"]],
+        room != nil,
+        msg = room["lastMessage"],
+        is_map(msg),
+        from = msg["u"] || %{},
+        from["_id"] != me,
+        bot_id in [nil, ""] or (from["_id"] != bot_id and bot_id not in (room["uids"] || [])),
+        is_nil(msg["bot"]),
+        at = RocketChat.ts(msg["ts"]),
+        at != nil and DateTime.compare(at, since) != :lt,
+        do: %{sub: sub, room: room, msg: msg, from: from, at: at}
   end
 
   defp bot_senders(cred, candidates) do

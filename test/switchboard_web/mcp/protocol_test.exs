@@ -199,4 +199,141 @@ defmodule SwitchboardWeb.MCP.ProtocolTest do
     assert [%{action: "whoami", kind: "mcp", outcome: "ok", client_name: "Test client"}] =
              Switchboard.Audit.list(%{user_id: user.id, kind: "mcp"})
   end
+
+  describe "workflows as prompts" do
+    # anubis runs prompt handlers in its own processes: stubs and the sandbox are shared.
+    setup do
+      Req.Test.set_req_test_to_shared()
+      on_exit(fn -> Req.Test.set_req_test_to_private() end)
+      Switchboard.UpstreamStubs.stub()
+      {user, _client, %{"access_token" => access}} = token_fixture()
+      Switchboard.UpstreamStubs.link_all(user)
+      {:ok, user: user, auth: [{"authorization", "Bearer " <> access}]}
+    end
+
+    @stateless_meta %{
+      "io.modelcontextprotocol/protocolVersion" => "2026-07-28",
+      "io.modelcontextprotocol/clientCapabilities" => %{}
+    }
+
+    defp stateless(auth, id, method, params, name \\ nil) do
+      headers =
+        auth ++
+          [{"mcp-protocol-version", "2026-07-28"}, {"mcp-method", method}] ++
+          if(name, do: [{"mcp-name", name}], else: [])
+
+      mcp(
+        build_conn(),
+        %{
+          "jsonrpc" => "2.0",
+          "id" => id,
+          "method" => method,
+          "params" => Map.put(params, "_meta", @stateless_meta)
+        },
+        headers
+      )
+      |> json_rpc()
+    end
+
+    test "listed and fetched over 2026-07-28 (stateless)", %{auth: auth, user: user} do
+      %{"result" => %{"prompts" => prompts}} = stateless(auth, 1, "prompts/list", %{})
+
+      assert Enum.map(prompts, & &1["name"]) |> Enum.sort() ==
+               ~w(handoff inbox next pickup standup triage)
+
+      pickup = Enum.find(prompts, &(&1["name"] == "pickup"))
+      assert [%{"name" => "task", "required" => true}] = pickup["arguments"]
+
+      %{"result" => %{"messages" => [%{"role" => "user", "content" => %{"text" => text}}]}} =
+        stateless(
+          auth,
+          2,
+          "prompts/get",
+          %{"name" => "pickup", "arguments" => %{"task" => "DEMO-12"}},
+          "pickup"
+        )
+
+      assert text =~ "# pickup: Start working on a task"
+      assert text =~ "Accountants need a CSV."
+
+      assert [%{action: "workflow:pickup", args: %{"via" => "prompt"}, outcome: "ok"}] =
+               Switchboard.Audit.list(%{user_id: user.id, kind: "mcp"})
+
+      # The same text through the workflow tool.
+      %{"result" => %{"content" => [%{"text" => tool_text}]}} =
+        stateless(
+          auth,
+          3,
+          "tools/call",
+          %{
+            "name" => "workflow",
+            "arguments" => %{"name" => "pickup", "args" => %{"task" => "DEMO-12"}}
+          },
+          "workflow"
+        )
+
+      strip = &String.replace(&1, ~r/run \w+ \d{4}-\d\d-\d\d \d\d:\d\d/, "")
+      assert strip.(tool_text) == strip.(text)
+    end
+
+    @tag :capture_log
+    test "an invalid argument or a refused workflow is a protocol error", %{auth: auth} do
+      %{"error" => %{"message" => message}} =
+        stateless(auth, 1, "prompts/get", %{"name" => "pickup", "arguments" => %{}}, "pickup")
+
+      assert message =~ "Missing arguments: task"
+    end
+
+    test "listed and fetched over 2025-06-18 (session)", %{auth: auth} do
+      conn = mcp(build_conn(), @init, auth)
+      assert %{"result" => %{"capabilities" => caps}} = json_rpc(conn)
+      assert Map.has_key?(caps, "prompts")
+      [session] = get_resp_header(conn, "mcp-session-id")
+      headers = auth ++ [{"mcp-session-id", session}, {"mcp-protocol-version", "2025-06-18"}]
+
+      assert mcp(
+               build_conn(),
+               %{"jsonrpc" => "2.0", "method" => "notifications/initialized"},
+               headers
+             ).status ==
+               202
+
+      list =
+        mcp(
+          build_conn(),
+          %{"jsonrpc" => "2.0", "id" => 2, "method" => "prompts/list", "params" => %{}},
+          headers
+        )
+        |> json_rpc()
+
+      assert "standup" in Enum.map(list["result"]["prompts"], & &1["name"])
+
+      get =
+        mcp(
+          build_conn(),
+          %{
+            "jsonrpc" => "2.0",
+            "id" => 3,
+            "method" => "prompts/get",
+            "params" => %{"name" => "standup", "arguments" => %{"channel" => "#demo-standup"}}
+          },
+          headers
+        )
+        |> json_rpc()
+
+      assert %{"result" => %{"messages" => [%{"content" => %{"text" => text}}]}} = get
+      assert text =~ "# standup: Draft my standup"
+      assert text =~ "`#demo-standup`"
+    end
+
+    test "completion offers open items for pickup's task", %{auth: auth} do
+      %{"result" => %{"completion" => %{"values" => values}}} =
+        stateless(auth, 1, "completion/complete", %{
+          "ref" => %{"type" => "ref/prompt", "name" => "pickup"},
+          "argument" => %{"name" => "task", "value" => "DEMO"}
+        })
+
+      assert "DEMO-12" in values
+    end
+  end
 end

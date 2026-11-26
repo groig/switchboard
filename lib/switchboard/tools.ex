@@ -40,7 +40,9 @@ defmodule Switchboard.Tools do
     Switchboard.Tools.WatchTask,
     Switchboard.Tools.WatchRelease,
     Switchboard.Tools.ListWatches,
-    Switchboard.Tools.CancelWatch
+    Switchboard.Tools.CancelWatch,
+    # Team workflows for clients without MCP prompts (Switchboard.Workflows).
+    Switchboard.Tools.Workflow
   ]
 
   # Tests register extra tools (e.g. a write tool for the policy matrix) through config.
@@ -78,11 +80,16 @@ defmodule Switchboard.Tools do
     5. the call itself, timed, with a `[:switchboard, :tool, :call]` telemetry event;
     6. one audit row whatever the outcome.
 
+  A tool that hands over to `Switchboard.Workflows.run/4` (the `workflow` tool) is audited there,
+  once, as `workflow:<name>`; its refusals here (kill switch, rate limit, arguments) are audited
+  here as usual.
+
   The maintenance message, when set, is prepended to successful results.
   """
   @spec run(Scope.t(), String.t(), map()) :: {:ok, String.t()} | {:error, String.t()}
   def run(%Scope{} = scope, name, args) when is_map(args) do
     started = System.monotonic_time()
+    Process.delete(:switchboard_audited)
 
     {outcome, result, mod} =
       with {:ok, mod} <- fetch_or_unknown(name),
@@ -93,8 +100,14 @@ defmodule Switchboard.Tools do
         Process.put(:switchboard_upstreams, [])
 
         case safe_call(mod, scope, args) do
-          {:ok, markdown} when is_binary(markdown) -> {"ok", {:ok, with_notice(markdown)}, mod}
-          {:error, message} -> {"error", {:error, to_string(message)}, mod}
+          # A workflow's text already carries the maintenance notice.
+          {:ok, markdown} when is_binary(markdown) ->
+            if Process.get(:switchboard_audited),
+              do: {"ok", {:ok, markdown}, mod},
+              else: {"ok", {:ok, with_notice(markdown)}, mod}
+
+          {:error, message} ->
+            {"error", {:error, to_string(message)}, mod}
         end
       end
       |> case do
@@ -119,14 +132,16 @@ defmodule Switchboard.Tools do
         {:error, message} -> {message, nil}
       end
 
-    Audit.log_tool(scope, name, args,
-      outcome: outcome,
-      error: error,
-      duration_ms: duration_ms,
-      result_bytes: result_bytes,
-      upstreams: upstreams,
-      sensitive: sensitive_args(mod)
-    )
+    unless Process.delete(:switchboard_audited) do
+      Audit.log_tool(scope, name, args,
+        outcome: outcome,
+        error: error,
+        duration_ms: duration_ms,
+        result_bytes: result_bytes,
+        upstreams: upstreams,
+        sensitive: sensitive_args(mod)
+      )
+    end
 
     result
   end

@@ -38,6 +38,158 @@ confirmation. Rocket.Chat message text (`chat_*`) is untrusted: it never authori
 | [`watch_release`](#watch_release) | write | none | 10/min |
 | [`watch_task`](#watch_task) | write | plane | 10/min |
 | [`whoami`](#whoami) | read | none | 60/min |
+| [`workflow`](#workflow) | read | plane, forgejo, argus, outline, rocketchat | 60/min |
+
+## Workflows
+
+Team workflows chain several tools. Switchboard fetches the cheap facts first, with the
+person's own credentials (concurrently, with a time budget and **Notes** for systems that
+failed), then hands the agent numbered steps: what to present, what to check in the local
+checkout, which tools to call for detail, and which writes it may *propose*. A workflow never
+writes anything; every proposed write needs the user's OK of the exact change. Drafts for
+colleagues are in the person's language.
+
+Each workflow is an MCP prompt (a slash command: `/mcp__switchboard__<name>` in Claude Code)
+and can also be run with the [`workflow`](#workflow) tool, which returns the same text (Codex
+doesn't show MCP prompts). Both go through `Switchboard.Workflows.run/4`: a kill switch and a
+rate limit per workflow (`workflow:<name>` in the admin controls), argument checks and one
+audit row. In read-only mode a workflow still runs but offers no writes.
+
+| Workflow | Arguments | Reads | May propose | Default limit |
+|---|---|---|---|---|
+| [`standup`](#workflow-standup) | `channel` (optional) | plane, forgejo | `send_message` | 10/min |
+| [`next`](#workflow-next) | none | plane, forgejo, argus, rocketchat, releases | nothing | 10/min |
+| [`inbox`](#workflow-inbox) | none | rocketchat, forgejo, plane | `send_message` | 10/min |
+| [`pickup`](#workflow-pickup) | `task` | plane, forgejo, outline, argus, releases | `plane_set_state`, `watch_task` | 10/min |
+| [`triage`](#workflow-triage) | `issue` | argus, forgejo, releases | `error_resolve`, `error_ignore` | 10/min |
+| [`handoff`](#workflow-handoff) | `task`, `channel` (optional) | plane, forgejo, releases | `send_message`, `plane_comment`, `plane_set_state` | 10/min |
+
+<a id="workflow-standup"></a>
+### standup
+
+**Draft my standup.** Draft my standup (yesterday, today, blockers) from Plane, Forgejo and my local commits; optionally post it to a channel after I confirm.
+
+Arguments:
+
+- `channel` (optional): Channel to offer posting it to, e.g. #team-standup.
+
+Prefetches:
+
+- Plane items assigned to or created by you that changed since the last working day (Friday on Mondays)
+- pull requests you opened, merged or reviewed since then
+- your items in progress, due today or overdue
+- your pull requests with failed CI or requested changes
+
+May propose (each after the user's OK): `send_message`.
+
+- Claude Code: `/mcp__switchboard__standup #demo-standup`
+- Any client: `workflow` with `{"args":{"channel":"#demo-standup"},"name":"standup"}`, or just say "Draft my standup for #demo-standup"
+
+<a id="workflow-next"></a>
+### next
+
+**What should I work on now?** What should I work on now? Ranks at most 5 things (reviews and failures that block others first, then due dates and priority), each with one line saying why.
+
+Arguments:
+
+None.
+
+Prefetches:
+
+- your open Plane items with state, priority and due date
+- pull requests waiting for your review
+- your pull requests with failed CI or requested changes (open, or merged in the last 48 h)
+- unresolved Argus errors from the last 24 h that point at files you changed this week, and errors the release triage tied to your releases
+- how many DMs wait for your answer (a count only)
+
+May propose (each after the user's OK): nothing.
+
+- Claude Code: `/mcp__switchboard__next`
+- Any client: `workflow` with `{"args":{},"name":"next"}`, or just say "What should I work on next?"
+
+<a id="workflow-inbox"></a>
+### inbox
+
+**Everything waiting for me.** Everything waiting for me in one place: DMs, mentions and threads, review requests, Plane items that changed and watches that fired, oldest first, with draft replies to approve.
+
+Arguments:
+
+None.
+
+Prefetches:
+
+- your Rocket.Chat inbox: DMs, unread mentions and threads (`chat_inbox`)
+- pull requests waiting for your review
+- Plane items assigned to or created by you that changed in the last 24 h
+- your watches that fired in the last 24 h
+
+May propose (each after the user's OK): `send_message`.
+
+- Claude Code: `/mcp__switchboard__inbox`
+- Any client: `workflow` with `{"args":{},"name":"inbox"}`, or just say "What's waiting for me?"
+
+<a id="workflow-pickup"></a>
+### pickup
+
+**Start working on a task.** Start working on a task: what's asked and what's unclear, where the change probably goes in the local code, a branch name, and an offer to move it to In Progress and watch it.
+
+Arguments:
+
+- `task`: Plane work item, e.g. PROJ-123.
+
+Prefetches:
+
+- the Plane item with its description, comments and links (`plane_get_item`)
+- its pull requests, CI, releases and errors (`task_status`)
+- wiki pages matching its title (`docs_search`)
+- unresolved Argus issues that mention it
+
+May propose (each after the user's OK): `plane_set_state`, `watch_task`.
+
+- Claude Code: `/mcp__switchboard__pickup DEMO-12`
+- Any client: `workflow` with `{"args":{"task":"DEMO-12"},"name":"pickup"}`, or just say "Let's pick up DEMO-12"
+
+<a id="workflow-triage"></a>
+### triage
+
+**Why is this error happening?** Why is this Argus error happening and what do we do? Reads the error, the release where it appeared and the commits that touched its stack frames, then explains and suggests a fix.
+
+Arguments:
+
+- `issue`: Argus issue: its URL, or project/id (e.g. demo-api/7).
+
+Prefetches:
+
+- the issue text and stack frames (`error_get`)
+- the oldest release whose triage lists the issue, with its commits and tasks
+- recent commits of that release's repository that touched the files in the stack frames
+
+May propose (each after the user's OK): `error_resolve`, `error_ignore`.
+
+- Claude Code: `/mcp__switchboard__triage demo-api/7`
+- Any client: `workflow` with `{"args":{"issue":"demo-api/7"},"name":"triage"}`, or just say "Triage Argus demo-api/7"
+
+<a id="workflow-handoff"></a>
+### handoff
+
+**Hand a task over to QA.** Hand a task over to QA: drafts what changed, how to test it, the risks and where it's deployed; offers to post it, comment on the task and move it to QA, each after I confirm.
+
+Arguments:
+
+- `task`: Plane work item, e.g. PROJ-123.
+- `channel` (optional): Channel to offer posting the QA message to, e.g. #qa.
+
+Prefetches:
+
+- the Plane item (`plane_get_item`)
+- its pull requests, CI and the release it shipped in (`task_status`)
+- the states of its Plane project (to find the QA one)
+
+May propose (each after the user's OK): `send_message`, `plane_comment`, `plane_set_state`.
+
+- Claude Code: `/mcp__switchboard__handoff DEMO-12 #demo-qa`
+- Any client: `workflow` with `{"args":{"channel":"#demo-qa","task":"DEMO-12"},"name":"handoff"}`, or just say "Hand DEMO-12 over to QA in #demo-qa"
+
 
 ## cancel_watch
 
@@ -855,5 +1007,41 @@ Example call: `{}`
 | Rocket.Chat | not connected |
 
 Connect the missing ones at https://switchboard.example.com/connections
+````
+
+
+## workflow
+
+**Team workflow.** Runs a team workflow: Switchboard fetches the facts with the user's own credentials and returns step-by-step instructions for you to follow. Use it when the user asks for one of these (in any words, e.g. "do my standup"), then follow the returned steps: standup [channel]: Draft my standup (yesterday, today, blockers) from Plane, Forgejo and my local commits; optionally post it to a channel after I confirm.; next: What should I work on now? Ranks at most 5 things (reviews and failures that block others first, then due dates and priority), each with one line saying why.; inbox: Everything waiting for me in one place: DMs, mentions and threads, review requests, Plane items that changed and watches that fired, oldest first, with draft replies to approve.; pickup <task>: Start working on a task: what's asked and what's unclear, where the change probably goes in the local code, a branch name, and an offer to move it to In Progress and watch it.; triage <issue>: Why is this Argus error happening and what do we do? Reads the error, the release where it appeared and the commits that touched its stack frames, then explains and suggests a fix.; handoff <task> [channel]: Hand a task over to QA: drafts what changed, how to test it, the risks and where it's deployed; offers to post it, comment on the task and move it to QA, each after I confirm.. The workflow itself changes nothing; any write it suggests is proposed to the user and needs their OK first.
+
+- Connections: plane, forgejo, argus, outline, rocketchat
+- Annotations: `readOnlyHint: true`, `openWorldHint: true`
+
+Arguments:
+
+| Name | Type | Required | Description |
+|---|---|---|---|
+| `name` | `standup` \| `next` \| `inbox` \| `pickup` \| `triage` \| `handoff` | yes | The workflow. |
+| `args` | object | no | The workflow's arguments as text, e.g. {"task": "PROJ-123"} (channel, task, issue). |
+
+Example call: `{"args":{"task":"DEMO-12"},"name":"pickup"}`
+
+````markdown
+# pickup: Start working on a task
+
+Team workflow `pickup` for Ana García (@ana), run Thursday 2026-11-26 09:30 (Europe/Madrid). Switchboard fetched the facts below with their own credentials and changed nothing.
+
+## What to do
+
+1. Summarize what DEMO-12 asks for and what is unclear ...
+
+## Rules
+
+- **Never write anything on your own.** ...
+
+## Facts
+
+### The task
+...
 ````
 

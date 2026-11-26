@@ -148,6 +148,71 @@ defmodule Switchboard.Plane do
     end
   end
 
+  @doc """
+  Work items in the person's member projects updated since `since`, that are assigned to them or
+  that they created (Plane's API has no per-person activity feed). One page per project, newest
+  first; returns `{:ok, items, notes}` like `my_items/2`.
+  """
+  def recent_items(cred, user_id, %DateTime{} = since) do
+    with {:ok, me} <- me(cred, user_id),
+         {:ok, projects} <- projects(cred, user_id) do
+      member = Enum.filter(projects, & &1["is_member"])
+
+      results =
+        member
+        |> Task.async_stream(&recent_in(cred, &1, me["id"], since),
+          timeout: 15_000,
+          on_timeout: :kill_task,
+          max_concurrency: 4
+        )
+        |> Enum.zip(member)
+
+      items = for {{:ok, {:ok, items}}, _p} <- results, item <- items, do: item
+
+      notes =
+        for {result, p} <- results, not match?({:ok, {:ok, _}}, result) do
+          reason =
+            case result do
+              {:ok, {:error, r}} -> r
+              {:exit, :timeout} -> :timeout
+              _ -> :crashed
+            end
+
+          "#{p["identifier"]}: " <> Upstreams.problem(:plane, reason)
+        end
+
+      {:ok, Enum.sort_by(items, & &1["updated_at"], :desc), notes}
+    end
+  end
+
+  defp recent_in(cred, project, me_id, since) do
+    params = [
+      per_page: 50,
+      order_by: "-updated_at",
+      expand: "state",
+      fields: @item_fields <> ",created_by"
+    ]
+
+    with {:ok, body} <- get(cred, ws_path("/projects/#{project["id"]}/work-items/"), params) do
+      items =
+        for item <- body["results"] || [],
+            updated_since?(item["updated_at"], since),
+            me_id in (item["assignees"] || []) or item["created_by"] == me_id,
+            do: Map.put(item, "identifier", "#{project["identifier"]}-#{item["sequence_id"]}")
+
+      {:ok, items}
+    end
+  end
+
+  defp updated_since?(at, since) when is_binary(at) do
+    case DateTime.from_iso8601(at) do
+      {:ok, dt, _} -> DateTime.compare(dt, since) != :lt
+      _ -> false
+    end
+  end
+
+  defp updated_since?(_at, _since), do: false
+
   @doc "A work item by its identifier (`PROJ-123`), with state, assignees and labels."
   def item(cred, identifier) do
     get(cred, ws_path("/work-items/#{identifier}/"), expand: "state,assignees,labels")

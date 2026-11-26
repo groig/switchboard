@@ -124,62 +124,10 @@ defmodule Switchboard.UpstreamStubs do
 
   defp plane(conn, @ws <> "/projects/p-demo/work-items/") do
     params = URI.decode_query(conn.query_string)
-    "state__group" = params["order_by"]
 
-    item = fn seq, name, group, state, assignees, prio, due ->
-      %{
-        "id" => "i-#{seq}",
-        "name" => name,
-        "sequence_id" => seq,
-        "state" => %{"name" => state, "group" => group},
-        "assignees" => assignees,
-        "priority" => prio,
-        "target_date" => due,
-        "project" => "p-demo"
-      }
-    end
-
-    case params["cursor"] do
-      nil ->
-        Req.Test.json(conn, %{
-          "results" => [
-            item.(
-              15,
-              "Rounding in tax totals",
-              "unstarted",
-              "Todo",
-              [@me],
-              "urgent",
-              "2020-01-01"
-            ),
-            item.(
-              12,
-              "Export invoices as CSV",
-              "started",
-              "In Progress",
-              [@me, "u-bruno"],
-              "high",
-              "2099-11-30"
-            ),
-            item.(13, "Someone else's task", "started", "In Progress", ["u-bruno"], "low", nil)
-          ],
-          "next_page_results" => true,
-          "next_cursor" => "100:1:0"
-        })
-
-      "100:1:0" ->
-        Req.Test.json(conn, %{
-          "results" => [
-            item.(9, "Remove legacy export", "backlog", "Backlog", [@me], "low", nil),
-            item.(3, "Old done task", "completed", "Done", [@me], "none", nil)
-          ],
-          # A closed item was reached: the client must stop even though more pages exist.
-          "next_page_results" => true,
-          "next_cursor" => "100:2:0"
-        })
-
-      "100:2:0" ->
-        raise "my_items must stop at the first closed item"
+    case params["order_by"] do
+      "-updated_at" -> plane_recent(conn)
+      "state__group" -> plane_by_state(conn, params)
     end
   end
 
@@ -250,6 +198,93 @@ defmodule Switchboard.UpstreamStubs do
         }
       ]
     })
+  end
+
+  # Recently updated items (workflows): one of the person's, one created by them, one neither.
+  defp plane_recent(conn) do
+    recent = DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_iso8601()
+
+    item = fn seq, name, assignees, created_by, updated ->
+      %{
+        "id" => "i-#{seq}",
+        "name" => name,
+        "sequence_id" => seq,
+        "state" => %{"name" => "In Progress", "group" => "started"},
+        "assignees" => assignees,
+        "created_by" => created_by,
+        "priority" => "high",
+        "target_date" => nil,
+        "project" => "p-demo",
+        "updated_at" => updated
+      }
+    end
+
+    Req.Test.json(conn, %{
+      "results" => [
+        item.(12, "Export invoices as CSV", [@me], "u-bruno", recent),
+        item.(20, "Reported by me", ["u-bruno"], @me, recent),
+        item.(13, "Someone else's task", ["u-bruno"], "u-bruno", recent),
+        item.(4, "Changed long ago", [@me], @me, "2020-01-01T00:00:00Z")
+      ]
+    })
+  end
+
+  defp plane_by_state(conn, params) do
+    item = fn seq, name, group, state, assignees, prio, due ->
+      %{
+        "id" => "i-#{seq}",
+        "name" => name,
+        "sequence_id" => seq,
+        "state" => %{"name" => state, "group" => group},
+        "assignees" => assignees,
+        "priority" => prio,
+        "target_date" => due,
+        "project" => "p-demo"
+      }
+    end
+
+    case params["cursor"] do
+      nil ->
+        Req.Test.json(conn, %{
+          "results" => [
+            item.(
+              15,
+              "Rounding in tax totals",
+              "unstarted",
+              "Todo",
+              [@me],
+              "urgent",
+              "2020-01-01"
+            ),
+            item.(
+              12,
+              "Export invoices as CSV",
+              "started",
+              "In Progress",
+              [@me, "u-bruno"],
+              "high",
+              "2099-11-30"
+            ),
+            item.(13, "Someone else's task", "started", "In Progress", ["u-bruno"], "low", nil)
+          ],
+          "next_page_results" => true,
+          "next_cursor" => "100:1:0"
+        })
+
+      "100:1:0" ->
+        Req.Test.json(conn, %{
+          "results" => [
+            item.(9, "Remove legacy export", "backlog", "Backlog", [@me], "low", nil),
+            item.(3, "Old done task", "completed", "Done", [@me], "none", nil)
+          ],
+          # A closed item was reached: the client must stop even though more pages exist.
+          "next_page_results" => true,
+          "next_cursor" => "100:2:0"
+        })
+
+      "100:2:0" ->
+        raise "my_items must stop at the first closed item"
+    end
   end
 
   # Forgejo: one repo, one open PR with a failing CI run.

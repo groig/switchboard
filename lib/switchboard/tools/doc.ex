@@ -1,7 +1,7 @@
 defmodule Switchboard.Tools.Doc do
-  @moduledoc "Renders `docs/TOOLS.md` from the tool registry."
+  @moduledoc "Renders `docs/TOOLS.md` from the tool and workflow registries."
 
-  alias Switchboard.Tools
+  alias Switchboard.{Controls, Tools, Workflows}
 
   @path "docs/TOOLS.md"
 
@@ -26,7 +26,105 @@ defmodule Switchboard.Tools.Doc do
     |---|---|---|---|
     #{Enum.map_join(tools, "\n", &summary_row/1)}
 
+    #{workflows()}
     #{Enum.map_join(tools, "\n", &section/1)}\
+    """
+  end
+
+  defp workflows do
+    mods = Workflows.all()
+
+    """
+    ## Workflows
+
+    Team workflows chain several tools. Switchboard fetches the cheap facts first, with the
+    person's own credentials (concurrently, with a time budget and **Notes** for systems that
+    failed), then hands the agent numbered steps: what to present, what to check in the local
+    checkout, which tools to call for detail, and which writes it may *propose*. A workflow never
+    writes anything; every proposed write needs the user's OK of the exact change. Drafts for
+    colleagues are in the person's language.
+
+    Each workflow is an MCP prompt (a slash command: `/mcp__switchboard__<name>` in Claude Code)
+    and can also be run with the [`workflow`](#workflow) tool, which returns the same text (Codex
+    doesn't show MCP prompts). Both go through `Switchboard.Workflows.run/4`: a kill switch and a
+    rate limit per workflow (`workflow:<name>` in the admin controls), argument checks and one
+    audit row. In read-only mode a workflow still runs but offers no writes.
+
+    | Workflow | Arguments | Reads | May propose | Default limit |
+    |---|---|---|---|---|
+    #{Enum.map_join(mods, "\n", &workflow_row/1)}
+
+    #{Enum.map_join(mods, "\n", &workflow_section/1)}
+    """
+  end
+
+  defp workflow_row(mod) do
+    "| [`#{mod.name()}`](#workflow-#{mod.name()}) | #{workflow_args(mod)} | " <>
+      "#{Enum.map_join(mod.connections(), ", ", &to_string/1)} | " <>
+      "#{writes(mod)} | #{Controls.default_rate_limit(mod)}/min |"
+  end
+
+  defp title(mod) do
+    t = mod.title()
+    if String.ends_with?(t, ["?", "."]), do: t, else: t <> "."
+  end
+
+  defp workflow_args(mod) do
+    case mod.arguments() do
+      [] ->
+        "none"
+
+      args ->
+        Enum.map_join(
+          args,
+          ", ",
+          &if(&1.required, do: "`#{&1.name}`", else: "`#{&1.name}` (optional)")
+        )
+    end
+  end
+
+  defp writes(mod) do
+    case mod.writes() do
+      [] -> "nothing"
+      list -> Enum.map_join(list, ", ", &"`#{&1}`")
+    end
+  end
+
+  defp workflow_section(mod) do
+    %{args: args, says: says} = mod.example()
+
+    positional =
+      Enum.map_join(mod.arguments(), "", &if(v = args[&1.name], do: " " <> v, else: ""))
+
+    arguments =
+      case mod.arguments() do
+        [] ->
+          "None."
+
+        list ->
+          Enum.map_join(list, "\n", fn a ->
+            "- `#{a.name}`#{if a.required, do: "", else: " (optional)"}: #{a.description}"
+          end)
+      end
+
+    """
+    <a id="workflow-#{mod.name()}"></a>
+    ### #{mod.name()}
+
+    **#{title(mod)}** #{mod.description()}
+
+    Arguments:
+
+    #{arguments}
+
+    Prefetches:
+
+    #{Enum.map_join(mod.fetches(), "\n", &"- #{&1}")}
+
+    May propose (each after the user's OK): #{writes(mod)}.
+
+    - Claude Code: `/mcp__switchboard__#{mod.name()}#{positional}`
+    - Any client: `workflow` with `#{Jason.encode!(%{"name" => mod.name(), "args" => args})}`, or just say "#{says}"
     """
   end
 

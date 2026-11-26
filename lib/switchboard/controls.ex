@@ -5,7 +5,9 @@ defmodule Switchboard.Controls do
     * global read-only mode (refuses every tool that isn't read-only);
     * a maintenance message (a banner in the web app and a note on tool results);
     * pausing every watch (no new watches, no polling, no notices);
-    * per-tool kill switches and rate limits.
+    * per-tool kill switches and rate limits;
+    * per-workflow kill switches and rate limits, stored like a tool's under
+      `"workflow:<name>"` (`Switchboard.Workflows.control_key/1`).
 
   Reads come from a `:persistent_term` snapshot, so the hot path (every tool call) never hits
   the database. Writes reload the snapshot and broadcast on `"controls"` so other nodes and open
@@ -24,6 +26,8 @@ defmodule Switchboard.Controls do
   # Default calls per person per minute.
   @default_read_limit 60
   @default_write_limit 10
+  # A workflow fans out to several systems (and spends the person's Plane budget).
+  @default_workflow_limit 10
 
   def subscribe, do: Phoenix.PubSub.subscribe(Switchboard.PubSub, @topic)
 
@@ -41,18 +45,30 @@ defmodule Switchboard.Controls do
     end
   end
 
-  def tool_enabled?(name), do: Map.get(snapshot().tools, name, %{enabled: true}).enabled
+  @doc "Whether a tool (by name) or a workflow (by `workflow:<name>`) is switched on."
+  def tool_enabled?(key), do: Map.get(snapshot().tools, key, %{enabled: true}).enabled
 
-  @doc "Calls per person per minute for a tool module."
-  def rate_limit(tool_mod) do
-    case Map.get(snapshot().tools, tool_mod.name()) do
+  @doc "Calls per person per minute for a tool or workflow module."
+  def rate_limit(mod) do
+    case Map.get(snapshot().tools, control_key(mod)) do
       %{rate_limit: limit} when is_integer(limit) -> limit
-      _ -> default_rate_limit(tool_mod)
+      _ -> default_rate_limit(mod)
     end
   end
 
-  def default_rate_limit(tool_mod) do
-    if tool_mod.annotations()[:read_only], do: @default_read_limit, else: @default_write_limit
+  def default_rate_limit(mod) do
+    cond do
+      Switchboard.Workflows.workflow?(mod) -> @default_workflow_limit
+      mod.annotations()[:read_only] -> @default_read_limit
+      true -> @default_write_limit
+    end
+  end
+
+  @doc "The controls key of a tool module (its name) or a workflow module (`workflow:<name>`)."
+  def control_key(mod) do
+    if Switchboard.Workflows.workflow?(mod),
+      do: Switchboard.Workflows.control_key(mod.name()),
+      else: mod.name()
   end
 
   def global, do: snapshot().global
@@ -109,7 +125,7 @@ defmodule Switchboard.Controls do
   def update_tool(%Scope{user: %{admin: true}} = scope, name, attrs) when is_binary(name) do
     control = Repo.get(ToolControl, name) || %ToolControl{tool: name}
 
-    with {:ok, _mod} <- Switchboard.Tools.fetch(name),
+    with {:ok, _mod} <- fetch_controlled(name),
          {:ok, control} <- control |> ToolControl.changeset(attrs) |> Repo.insert_or_update() do
       changed()
 
@@ -130,6 +146,10 @@ defmodule Switchboard.Controls do
     Audit.log_web(scope, "admin.tool_reset", %{tool: name})
     :ok
   end
+
+  # Tools by name, workflows by `workflow:<name>`.
+  defp fetch_controlled("workflow:" <> name), do: Switchboard.Workflows.fetch(name)
+  defp fetch_controlled(name), do: Switchboard.Tools.fetch(name)
 
   defp changed do
     reload()

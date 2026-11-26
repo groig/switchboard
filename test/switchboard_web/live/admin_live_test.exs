@@ -37,6 +37,31 @@ defmodule SwitchboardWeb.AdminLiveTest do
     assert Controls.rate_limit(Switchboard.Tools.Whoami) == 5
   end
 
+  test "controls: workflows have their own switches and limits", %{conn: conn} do
+    {:ok, view, _html} = live(conn, ~p"/admin")
+
+    assert has_element?(view, "#workflow-controls")
+    assert has_element?(view, "#toggle-workflow-standup")
+
+    view |> element("#toggle-workflow-standup") |> render_click()
+    refute Controls.tool_enabled?("workflow:standup")
+    assert Controls.tool_enabled?("workflow:next")
+
+    view
+    |> form("#limit-workflow-next", %{"tool" => "workflow:next", "rate_limit" => "3"})
+    |> render_submit()
+
+    assert Controls.rate_limit(Switchboard.Workflows.Next) == 3
+
+    assert has_element?(
+             view,
+             ~s(#workflow-controls button[phx-value-tool="workflow:next"][phx-click="reset_tool"])
+           )
+
+    assert [%{action: "admin.tool_updated", args: %{"tool" => "workflow:standup"}} | _] =
+             Switchboard.Audit.list(%{kind: "web"}) |> Enum.reverse()
+  end
+
   test "audit log filters by person", %{conn: conn, admin: admin} do
     other = user_fixture()
     Switchboard.Audit.log_web(Scope.for_user(other), "login")

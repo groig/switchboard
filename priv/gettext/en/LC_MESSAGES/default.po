@@ -117,7 +117,7 @@ msgstr ""
 
 #: lib/switchboard_web/components/layouts.ex:316
 #: lib/switchboard_web/live/admin/audit_live.ex:58
-#: lib/switchboard_web/live/admin/controls_live.ex:27
+#: lib/switchboard_web/live/admin/controls_live.ex:31
 #: lib/switchboard_web/live/admin/health_live.ex:30
 #: lib/switchboard_web/live/admin/people_live.ex:50
 #, elixir-autogen, elixir-format
@@ -155,7 +155,7 @@ msgstr ""
 msgid "Append-only. Rows older than %{days} days are deleted."
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:31
+#: lib/switchboard_web/live/admin/controls_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "Applied to the next tool call, for everyone. Every change is audited."
 msgstr ""
@@ -197,7 +197,7 @@ msgstr ""
 msgid "Breadcrumb"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:96
+#: lib/switchboard_web/live/admin/controls_live.ex:130
 #, elixir-autogen, elixir-format
 msgid "Calls per person per minute"
 msgstr ""
@@ -306,14 +306,14 @@ msgid "Connections"
 msgstr ""
 
 #: lib/switchboard_web/components/layouts.ex:324
-#: lib/switchboard_web/live/admin/controls_live.ex:9
-#: lib/switchboard_web/live/admin/controls_live.ex:28
-#: lib/switchboard_web/live/admin/controls_live.ex:30
+#: lib/switchboard_web/live/admin/controls_live.ex:12
+#: lib/switchboard_web/live/admin/controls_live.ex:32
+#: lib/switchboard_web/live/admin/controls_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Controls"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:146
+#: lib/switchboard_web/live/admin/controls_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Controls saved."
 msgstr ""
@@ -432,8 +432,8 @@ msgstr ""
 msgid "Down"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:76
-#: lib/switchboard_web/live/admin/controls_live.ex:93
+#: lib/switchboard_web/live/admin/controls_live.ex:110
+#: lib/switchboard_web/live/admin/controls_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "Enabled"
 msgstr ""
@@ -505,7 +505,7 @@ msgstr ""
 msgid "Give the token a name."
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:34
+#: lib/switchboard_web/live/admin/controls_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Global"
 msgstr ""
@@ -562,7 +562,7 @@ msgstr ""
 msgid "Light theme"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:160
+#: lib/switchboard_web/live/admin/controls_live.ex:202
 #, elixir-autogen, elixir-format
 msgid "Limit saved."
 msgstr ""
@@ -608,7 +608,7 @@ msgstr ""
 msgid "Main"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:54
+#: lib/switchboard_web/live/admin/controls_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Maintenance message"
 msgstr ""
@@ -717,7 +717,7 @@ msgstr ""
 msgid "Rate limited"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:39
+#: lib/switchboard_web/live/admin/controls_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Read-only mode"
 msgstr ""
@@ -728,7 +728,7 @@ msgstr ""
 msgid "Reconnecting…"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:40
+#: lib/switchboard_web/live/admin/controls_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Refuses every tool that changes data. Reads keep working."
 msgstr ""
@@ -753,7 +753,7 @@ msgstr ""
 msgid "Replace"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:130
+#: lib/switchboard_web/live/admin/controls_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "Reset"
 msgstr ""
@@ -809,7 +809,7 @@ msgstr ""
 msgid "Revoked everything for a person"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:63
+#: lib/switchboard_web/live/admin/controls_live.ex:67
 #: lib/switchboard_web/live/profile_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Save"
@@ -820,7 +820,7 @@ msgstr ""
 msgid "Search"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:113
+#: lib/switchboard_web/live/admin/controls_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "Set"
 msgstr ""
@@ -830,7 +830,7 @@ msgstr ""
 msgid "Show keyboard shortcuts"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:56
+#: lib/switchboard_web/live/admin/controls_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "Shown as a banner here and at the top of every tool result. Leave empty to clear."
 msgstr ""
@@ -977,7 +977,7 @@ msgstr ""
 msgid "Tokens"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:70
+#: lib/switchboard_web/live/admin/controls_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Tool"
 msgstr ""
@@ -993,7 +993,7 @@ msgstr ""
 msgid "Tool calls"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:68
+#: lib/switchboard_web/live/admin/controls_live.ex:72
 #, elixir-autogen, elixir-format
 msgid "Tools"
 msgstr ""
@@ -1016,7 +1016,7 @@ msgstr ""
 msgid "Upstream health"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:161
+#: lib/switchboard_web/live/admin/controls_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Use a number between 1 and 10000."
 msgstr ""
@@ -1073,7 +1073,7 @@ msgstr ""
 msgid "an MCP client"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:118
+#: lib/switchboard_web/live/admin/controls_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "default %{n}"
 msgstr ""
@@ -1109,7 +1109,7 @@ msgstr ""
 msgid "via %{client}"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:73
+#: lib/switchboard_web/live/admin/controls_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "write"
 msgstr ""
@@ -1268,7 +1268,7 @@ msgstr ""
 msgid "No new errors from this release."
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:47
+#: lib/switchboard_web/live/admin/controls_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "No new watches, no checks and no notices until switched back. Waiting notices are sent then."
 msgstr ""
@@ -1288,7 +1288,7 @@ msgstr ""
 msgid "Passed (no notice)"
 msgstr ""
 
-#: lib/switchboard_web/live/admin/controls_live.ex:45
+#: lib/switchboard_web/live/admin/controls_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Pause watches"
 msgstr ""
@@ -1416,4 +1416,19 @@ msgstr ""
 #: lib/switchboard/watches/notice.ex:54
 #, elixir-autogen, elixir-format
 msgid "🚀 %{id} shipped in %{repo} %{release}."
+msgstr ""
+
+#: lib/switchboard_web/live/admin/controls_live.ex:82
+#, elixir-autogen, elixir-format
+msgid "Slash commands that fetch facts and guide the agent. They never write; the writes they suggest go through the tools above."
+msgstr ""
+
+#: lib/switchboard_web/live/admin/controls_live.ex:90
+#, elixir-autogen, elixir-format
+msgid "Workflow"
+msgstr ""
+
+#: lib/switchboard_web/live/admin/controls_live.ex:80
+#, elixir-autogen, elixir-format
+msgid "Workflows"
 msgstr ""

@@ -11,6 +11,10 @@ defmodule Switchboard.MCP.Instructions do
     one: `my_work` for "what's on my plate?", `task_status` for everything about one task \
     (PRs, CI, release, errors), `release` for what shipped. Then drill down with `plane_*`, \
     `pr_status`, `ci_failure`, `error_*` and `docs_*`.
+    - Team workflows: #{workflows()}. When the user asks for one in any words ("do my standup", \
+    "what should I do next?", "let's pick up PROJ-123"), run it: as the slash command if they \
+    typed it, otherwise with the `workflow` tool (name and args). Then follow the steps it \
+    returns. Workflows change nothing; the writes they suggest still need the user's OK.
     - Task ids look like PROJ-123; repositories are owner/name.
     - Code stays in the developer's local checkout: Switchboard doesn't serve files.
     - Write tools change real systems. Before calling one, show the user exactly what will be \
@@ -28,5 +32,11 @@ defmodule Switchboard.MCP.Instructions do
     the rest; pass the note on to the user.
     - Answer in the user's language.
     """
+  end
+
+  defp workflows do
+    Enum.map_join(Switchboard.Workflows.all(), ", ", fn mod ->
+      "`#{String.replace_prefix(Switchboard.Workflows.usage(mod), "Usage: ", "")}` (#{mod.title()})"
+    end)
   end
 end

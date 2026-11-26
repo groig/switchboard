@@ -173,7 +173,9 @@ defmodule Switchboard.Tools.MyWork do
     end
   end
 
-  defp errors(scope, since) do
+  @doc false
+  # Unresolved Argus issues seen since `since` in the busiest projects (also used by workflows).
+  def errors(scope, since) do
     with {:ok, cred} <- Upstreams.credential(scope, :argus),
          {:ok, projects} <- Switchboard.Argus.projects(cred) do
       busy =
@@ -210,8 +212,9 @@ defmodule Switchboard.Tools.MyWork do
     end
   end
 
+  @doc false
   # The caller's own commits in their recently updated repos, with changed files.
-  defp my_commits(scope, since) do
+  def my_commits(scope, since) do
     with {:ok, %{"data" => repos}} <- Forgejo.my_repos(scope, scope.user.forgejo_id, 5) do
       commits =
         repos

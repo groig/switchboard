@@ -26,6 +26,31 @@ client needed it.
 - Because the new era is stateless, the server's `init/2` runs on every request and a session holds
   nothing between calls. Identity always comes from the request's bearer token.
 
+## MCP prompts (team workflows)
+
+Tested on 2026-11-26 against local dev, through a proxy that logged JSON-RPC method names, with
+Claude Code 2.1.325 and Codex 0.170.0.
+
+| | Claude Code | Codex |
+|---|---|---|
+| Lists prompts | yes: `prompts/list` at startup, after `server/discover` | **no**: only `initialize`, `notifications/initialized`, `tools/list` (exec and TUI) |
+| Slash command | `/mcp__<server>__<prompt>`, e.g. `/mcp__switchboard__standup` | none for MCP prompts (its `/` menu has built-ins and local custom prompts) |
+| Arguments | positional, space-separated, in the declared order: `/mcp__switchboard__handoff DEMO-12 #qa` → `task`, `channel` | – |
+| Argument completion | **no**: the menu shows `[task]` as a hint, but no `completion/complete` is ever sent | – |
+| Errors | a `prompts/get` error is shown as `ProtocolError: <message>`, without a model turn; a missing required argument is caught by the client (`Missing required argument: task. Usage: ...`) | – |
+| How to run a workflow | the slash command, or plain words | plain words: "do my standup" led Codex to `tools/call workflow` with `name: standup` |
+
+- The `/` menu shows each prompt as `/mcp__switchboard__pickup (MCP)` with its description and
+  `(arguments: task)`, so the description must say what the command does in one line and names
+  must be short (the prefix is long already).
+- `claude -p "/mcp__switchboard__next"` works too (print mode expands the prompt).
+- The prompt's text is inserted as a user message and the model follows it.
+- Values with spaces in arguments are untested; no workflow needs them (task ids, `#channel`,
+  issue URLs).
+- Because Codex never lists prompts, every workflow is also the `workflow` tool, and the server
+  instructions list the workflows. Switchboard still answers `completion/complete` for `task`
+  (the person's open Plane items), for clients that ask.
+
 ## Quirks
 
 1. **Portless loopback redirect URIs.** Both clients' CIMD documents list

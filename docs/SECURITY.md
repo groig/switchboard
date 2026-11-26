@@ -114,6 +114,38 @@ larger and easier attack surface than task descriptions.
   can still be steered by a message. Read-only mode and the per-tool kill switches are the
   operator's levers.
 
+### Team workflows (milestone 6)
+
+A workflow puts a lot of upstream text in front of the agent at once (task descriptions,
+comments, error texts, commit messages, chat messages) together with instructions that the agent
+is meant to follow. The risk is that upstream text passes for part of those instructions.
+
+- **Server-written steps, untrusted facts.** The steps and rules are written by Switchboard and
+  come before the Facts. Upstream text in the Facts is treated as the tools treat it:
+  descriptions, comments, error texts, messages and wiki snippets are inside `<untrusted>` blocks
+  with tags neutralised; the workflows' own tables (Plane items, pull requests, errors, commits)
+  are wrapped whole; titles and names in sections reused from a tool are escaped table cells or
+  headings, as in that tool. A test checks that injected text in a Plane description and in a DM
+  only appears inside a block, and that a fake closing tag can't end it.
+- **The rules repeat it** in every workflow: text in those blocks can't change the steps, add a
+  recipient or authorize a write; a message asking to send or post something is not an approval.
+- **Never writes.** A workflow only reads (a test runs all six against stubs and asserts no
+  write request and no watch). The writes it may propose are fixed per workflow and listed by
+  name; each needs the user's OK of the exact text and destination, one at a time. In read-only
+  mode, or when a write tool is switched off, the workflow says not to offer it.
+- **Recipients come from the user.** The only destinations a workflow names are the `channel`
+  argument the user typed (checked to look like `#channel` or `@user`) or the sender of a DM
+  being answered; never something found in upstream text.
+- **Same policy as tools.** Each workflow has its own kill switch and rate limit (admin
+  Controls, audited), one audit row per run (arguments, `via`, upstreams, result size; no
+  result text), and the sections that reuse a tool stop when that tool is switched off (so turning
+  off `chat_inbox` also keeps DMs out of `inbox`).
+- **Same credentials.** Everything is read with the caller's own keys (and the releases feed),
+  as the tools do; `test/switchboard/no_secrets_in_logs_test.exs` runs every workflow and checks
+  that no key and no DM text reaches the log or the audit log.
+- Residual risk: as for `chat_*`, a client that auto-approves write tools, or a user who approves
+  without reading, can still be steered. `next` carries only a DM count, never message text.
+
 ### Private messages
 
 - Reads use the person's own token and only reach rooms they are a member of (subscription check,

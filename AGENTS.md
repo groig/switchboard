@@ -77,6 +77,14 @@ guidance below.
   with the user (a test checks it). Declare `sensitive_args/0` for free-text a person may not want
   stored, and `example/0` for the docs. After adding or changing a tool run
   `mix switchboard.gen.tools_doc` (a test fails when `docs/TOOLS.md` is stale).
+- **Workflows** (`Switchboard.Workflow`, listed in `Switchboard.Workflows`) are exposed twice: as
+  MCP prompts (registered in the adapter's `init/2`) and as the read-only `workflow` tool, with
+  the same text. Both go through `Switchboard.Workflows.run/4` (kill switch and limit under
+  `workflow:<name>`, one audit row). A workflow only reads: it prefetches through `FanOut` with
+  the caller's credentials, wraps upstream text, and *proposes* writes from its `writes/0` list
+  (only the ones available now; one confirmation each). Sections that reuse a tool go through
+  `Workflows.Facts.tool/3` so the tool's kill switch applies. Keep names short (Claude Code shows
+  `/mcp__switchboard__<name>`); list new ones in `docs/TOOLS.md` (generated) and the README.
 - **Audit:** web actions call `Switchboard.Audit.log_web/4` inside the context function that does
   them, and get a label in `SwitchboardWeb.AuditLabels`. Tool calls are audited by `Tools.run/3`.
   Never update or delete `audit_events` (a trigger refuses); retention is `Audit.prune/1`.

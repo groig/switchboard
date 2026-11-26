@@ -117,7 +117,7 @@ msgstr "Acciones"
 
 #: lib/switchboard_web/components/layouts.ex:316
 #: lib/switchboard_web/live/admin/audit_live.ex:58
-#: lib/switchboard_web/live/admin/controls_live.ex:27
+#: lib/switchboard_web/live/admin/controls_live.ex:31
 #: lib/switchboard_web/live/admin/health_live.ex:30
 #: lib/switchboard_web/live/admin/people_live.ex:50
 #, elixir-autogen, elixir-format
@@ -155,7 +155,7 @@ msgstr "Cualquier resultado"
 msgid "Append-only. Rows older than %{days} days are deleted."
 msgstr "Solo se añaden filas. Las de más de %{days} días se borran."
 
-#: lib/switchboard_web/live/admin/controls_live.ex:31
+#: lib/switchboard_web/live/admin/controls_live.ex:35
 #, elixir-autogen, elixir-format
 msgid "Applied to the next tool call, for everyone. Every change is audited."
 msgstr "Se aplica a la siguiente llamada, para todo el mundo. Cada cambio queda auditado."
@@ -197,7 +197,7 @@ msgstr "Pertenece a %{who}"
 msgid "Breadcrumb"
 msgstr "Ruta de navegación"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:96
+#: lib/switchboard_web/live/admin/controls_live.ex:130
 #, elixir-autogen, elixir-format
 msgid "Calls per person per minute"
 msgstr "Llamadas por persona y minuto"
@@ -306,14 +306,14 @@ msgid "Connections"
 msgstr "Conexiones"
 
 #: lib/switchboard_web/components/layouts.ex:324
-#: lib/switchboard_web/live/admin/controls_live.ex:9
-#: lib/switchboard_web/live/admin/controls_live.ex:28
-#: lib/switchboard_web/live/admin/controls_live.ex:30
+#: lib/switchboard_web/live/admin/controls_live.ex:12
+#: lib/switchboard_web/live/admin/controls_live.ex:32
+#: lib/switchboard_web/live/admin/controls_live.ex:34
 #, elixir-autogen, elixir-format
 msgid "Controls"
 msgstr "Controles"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:146
+#: lib/switchboard_web/live/admin/controls_live.ex:188
 #, elixir-autogen, elixir-format
 msgid "Controls saved."
 msgstr "Controles guardados."
@@ -432,8 +432,8 @@ msgstr "Hecho"
 msgid "Down"
 msgstr "Caído"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:76
-#: lib/switchboard_web/live/admin/controls_live.ex:93
+#: lib/switchboard_web/live/admin/controls_live.ex:110
+#: lib/switchboard_web/live/admin/controls_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "Enabled"
 msgstr "Activada"
@@ -505,7 +505,7 @@ msgstr "General"
 msgid "Give the token a name."
 msgstr "Ponle un nombre al token."
 
-#: lib/switchboard_web/live/admin/controls_live.ex:34
+#: lib/switchboard_web/live/admin/controls_live.ex:38
 #, elixir-autogen, elixir-format
 msgid "Global"
 msgstr "Global"
@@ -562,7 +562,7 @@ msgstr "Claro"
 msgid "Light theme"
 msgstr "Tema claro"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:160
+#: lib/switchboard_web/live/admin/controls_live.ex:202
 #, elixir-autogen, elixir-format
 msgid "Limit saved."
 msgstr "Límite guardado."
@@ -608,7 +608,7 @@ msgstr "Cerrar sesión"
 msgid "Main"
 msgstr "Principal"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:54
+#: lib/switchboard_web/live/admin/controls_live.ex:58
 #, elixir-autogen, elixir-format
 msgid "Maintenance message"
 msgstr "Mensaje de mantenimiento"
@@ -717,7 +717,7 @@ msgstr "Perfil guardado."
 msgid "Rate limited"
 msgstr "Límite alcanzado"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:39
+#: lib/switchboard_web/live/admin/controls_live.ex:43
 #, elixir-autogen, elixir-format
 msgid "Read-only mode"
 msgstr "Modo solo lectura"
@@ -728,7 +728,7 @@ msgstr "Modo solo lectura"
 msgid "Reconnecting…"
 msgstr "Reconectando…"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:40
+#: lib/switchboard_web/live/admin/controls_live.ex:44
 #, elixir-autogen, elixir-format
 msgid "Refuses every tool that changes data. Reads keep working."
 msgstr "Rechaza toda herramienta que cambie datos. Las lecturas siguen funcionando."
@@ -753,7 +753,7 @@ msgstr "Eliminó una clave"
 msgid "Replace"
 msgstr "Sustituir"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:130
+#: lib/switchboard_web/live/admin/controls_live.ex:161
 #, elixir-autogen, elixir-format
 msgid "Reset"
 msgstr "Restablecer"
@@ -809,7 +809,7 @@ msgstr "Revocado todo para %{name}."
 msgid "Revoked everything for a person"
 msgstr "Revocó todo a una persona"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:63
+#: lib/switchboard_web/live/admin/controls_live.ex:67
 #: lib/switchboard_web/live/profile_live.ex:59
 #, elixir-autogen, elixir-format
 msgid "Save"
@@ -820,7 +820,7 @@ msgstr "Guardar"
 msgid "Search"
 msgstr "Buscar"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:113
+#: lib/switchboard_web/live/admin/controls_live.ex:147
 #, elixir-autogen, elixir-format
 msgid "Set"
 msgstr "Aplicar"
@@ -830,7 +830,7 @@ msgstr "Aplicar"
 msgid "Show keyboard shortcuts"
 msgstr "Mostrar atajos de teclado"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:56
+#: lib/switchboard_web/live/admin/controls_live.ex:60
 #, elixir-autogen, elixir-format
 msgid "Shown as a banner here and at the top of every tool result. Leave empty to clear."
 msgstr "Se muestra como aviso aquí y al principio de cada resultado de herramienta. Déjalo vacío para quitarlo."
@@ -977,7 +977,7 @@ msgstr "Token revocado."
 msgid "Tokens"
 msgstr "Tokens"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:70
+#: lib/switchboard_web/live/admin/controls_live.ex:77
 #, elixir-autogen, elixir-format
 msgid "Tool"
 msgstr "Herramienta"
@@ -993,7 +993,7 @@ msgstr "Llamada a herramienta"
 msgid "Tool calls"
 msgstr "Llamadas a herramientas"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:68
+#: lib/switchboard_web/live/admin/controls_live.ex:72
 #, elixir-autogen, elixir-format
 msgid "Tools"
 msgstr "Herramientas"
@@ -1016,7 +1016,7 @@ msgstr "Disponible"
 msgid "Upstream health"
 msgstr "Estado de los sistemas"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:161
+#: lib/switchboard_web/live/admin/controls_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Use a number between 1 and 10000."
 msgstr "Usa un número entre 1 y 10000."
@@ -1073,7 +1073,7 @@ msgstr "admin"
 msgid "an MCP client"
 msgstr "un cliente MCP"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:118
+#: lib/switchboard_web/live/admin/controls_live.ex:149
 #, elixir-autogen, elixir-format
 msgid "default %{n}"
 msgstr "por defecto %{n}"
@@ -1109,7 +1109,7 @@ msgstr "después"
 msgid "via %{client}"
 msgstr "vía %{client}"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:73
+#: lib/switchboard_web/live/admin/controls_live.ex:107
 #, elixir-autogen, elixir-format
 msgid "write"
 msgstr "escritura"
@@ -1268,7 +1268,7 @@ msgstr "Próxima versión y su estado a las 24 h"
 msgid "No new errors from this release."
 msgstr "Esta versión no introdujo errores nuevos."
 
-#: lib/switchboard_web/live/admin/controls_live.ex:47
+#: lib/switchboard_web/live/admin/controls_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "No new watches, no checks and no notices until switched back. Waiting notices are sent then."
 msgstr "Ni avisos nuevos, ni comprobaciones, ni mensajes hasta que se reactive. Los mensajes pendientes se envían entonces."
@@ -1288,7 +1288,7 @@ msgstr "Avisado"
 msgid "Passed (no notice)"
 msgstr "Pasó (sin mensaje)"
 
-#: lib/switchboard_web/live/admin/controls_live.ex:45
+#: lib/switchboard_web/live/admin/controls_live.ex:49
 #, elixir-autogen, elixir-format
 msgid "Pause watches"
 msgstr "Pausar avisos"
@@ -1417,3 +1417,18 @@ msgstr "❌ CI falló: %{what}"
 #, elixir-autogen, elixir-format
 msgid "🚀 %{id} shipped in %{repo} %{release}."
 msgstr "🚀 %{id} llegó a producción en %{repo} %{release}."
+
+#: lib/switchboard_web/live/admin/controls_live.ex:82
+#, elixir-autogen, elixir-format
+msgid "Slash commands that fetch facts and guide the agent. They never write; the writes they suggest go through the tools above."
+msgstr "Comandos de barra que recopilan datos y guían al asistente. Nunca escriben: las escrituras que sugieren pasan por las herramientas de arriba."
+
+#: lib/switchboard_web/live/admin/controls_live.ex:90
+#, elixir-autogen, elixir-format
+msgid "Workflow"
+msgstr "Flujo de trabajo"
+
+#: lib/switchboard_web/live/admin/controls_live.ex:80
+#, elixir-autogen, elixir-format
+msgid "Workflows"
+msgstr "Flujos de trabajo"
