@@ -4,35 +4,15 @@ Switchboard connects Claude Code and Codex to Plane, Forgejo, Argus, Outline, Ro
 
 ## Primeros pasos
 
-1. Sustituye el dominio del ejemplo por el de tu organización. Ejecuta el bloque correspondiente a tu cliente.
-2. Inicia sesión con Forgejo en el navegador y autoriza el acceso. En Claude Code, ejecuta el comando de inicio de sesión desde una terminal interactiva.
-3. Abre `/connections` en Switchboard y vincula tus credenciales para los servicios que vayas a usar. Pídele al asistente que ejecute `whoami` para comprobar la identidad con la que accede.
-4. Usa los comandos de equipo. En Claude Code se escriben como `/mcp__switchboard__<nombre>`. En Codex, pídelo con tus palabras (por ejemplo «haz mi standup») y el asistente usará la herramienta `workflow`. Los comandos no cambian nada por sí solos: el asistente te enseña cada mensaje o cambio y espera tu confirmación.
-
-| Comando | Para qué | Ejemplo en Claude Code |
-|---|---|---|
-| `standup` | Redactar tu standup: ayer, hoy y bloqueos | `/mcp__switchboard__standup #equipo-standup` |
-| `next` | Qué hacer ahora: como mucho 5 cosas, con el motivo | `/mcp__switchboard__next` |
-| `inbox` | Todo lo que te espera: mensajes, revisiones, tareas y avisos | `/mcp__switchboard__inbox` |
-| `pickup` | Empezar una tarea: qué se pide, dónde tocar el código y nombre de rama | `/mcp__switchboard__pickup PROJ-123` |
-| `triage` | Por qué ocurre un error de Argus y cómo arreglarlo | `/mcp__switchboard__triage demo-api/7` |
-| `handoff` | Pasar una tarea a QA con un mensaje de pruebas | `/mcp__switchboard__handoff PROJ-123 #qa` |
+1. Conecta tu cliente con el bloque correspondiente (sustituye el dominio del ejemplo por el de tu organización). Se abrirá el navegador para iniciar sesión con Forgejo; en Claude Code, ejecuta el inicio de sesión desde una terminal interactiva.
+2. Abre **Primeros pasos** (`/start`) en Switchboard. Es la página de inicio hasta que tu agente haga su primera llamada, y te guía por el resto: qué cuenta conectar y dónde crear cada clave, peticiones para probar (se marcan solas al usarlas) y los comandos de equipo.
+3. Dentro del agente, el comando `help` muestra lo mismo: `/mcp__switchboard__help` en Claude Code, o pregunta «¿qué puede hacer Switchboard?» en Codex.
 
 ## Getting started
 
-1. Replace the example domain with your organization's Switchboard host. Run the block for your client.
-2. Sign in with Forgejo in the browser and approve access. Run the Claude Code login command in an interactive terminal.
-3. Open `/connections` on your Switchboard host and link your credentials for the services you use. Ask your assistant to run `whoami` to verify your identity.
-4. Use the team commands. In Claude Code, type them as `/mcp__switchboard__<name>`. In Codex, ask in your own words (for example "do my standup") and the assistant uses the `workflow` tool. The commands change nothing on their own: the assistant shows you each message or change and waits for your OK.
-
-| Command | What for | Claude Code example |
-|---|---|---|
-| `standup` | Draft your standup: yesterday, today, blockers | `/mcp__switchboard__standup #team-standup` |
-| `next` | What to do now: at most 5 things, each with a reason | `/mcp__switchboard__next` |
-| `inbox` | Everything waiting for you: messages, reviews, tasks and watches | `/mcp__switchboard__inbox` |
-| `pickup` | Start a task: what's asked, where the code goes, a branch name | `/mcp__switchboard__pickup PROJ-123` |
-| `triage` | Why an Argus error happens and how to fix it | `/mcp__switchboard__triage demo-api/7` |
-| `handoff` | Hand a task over to QA with a test plan | `/mcp__switchboard__handoff PROJ-123 #qa` |
+1. Connect your client with the block below (replace the example domain with your organization's Switchboard host). Your browser opens to sign in with Forgejo; run the Claude Code login in an interactive terminal.
+2. Open **Get started** (`/start`) on Switchboard. It is your landing page until your agent makes its first call, and it walks you through the rest: which accounts to link and where to create each key, prompts to try (they tick off as you use them) and the team commands.
+3. Inside your agent, the `help` command shows the same: `/mcp__switchboard__help` in Claude Code, or ask "what can Switchboard do?" in Codex.
 
 **Claude Code**
 
@@ -57,6 +37,7 @@ codex mcp add switchboard --url https://switchboard.example.com/mcp
 | 4. Writes and notifications | Implemented with per-tool policy tests |
 | 5. Watches and reading Rocket.Chat | Implemented: CI, task and release watches (polling plus Forgejo webhook), `chat_inbox`, `chat_read` |
 | 6. Team workflows as slash commands | Implemented: `standup`, `next`, `inbox`, `pickup`, `triage`, `handoff` as MCP prompts and the `workflow` tool |
+| 7. Onboarding | Implemented: the Get started page (`/start`), the `help` workflow and the admin Onboarding view |
 | Deployment | Release image, Compose example, health check and CI workflow included |
 
 ## Development / Desarrollo

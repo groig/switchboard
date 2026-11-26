@@ -5,6 +5,7 @@ defmodule Switchboard.Workflows.Standup do
   and what's blocked; the agent adds their local commits and writes yesterday / today / blockers.
   """
   @behaviour Switchboard.Workflow
+  use Gettext, backend: SwitchboardWeb.Gettext
 
   alias Switchboard.Workflows.Facts
 
@@ -14,6 +15,8 @@ defmodule Switchboard.Workflows.Standup do
   def name, do: "standup"
   @impl true
   def title, do: "Draft my standup"
+  @impl true
+  def purpose, do: gettext_noop("Draft your standup: yesterday, today and blockers")
   @impl true
   def description,
     do:
@@ -46,7 +49,10 @@ defmodule Switchboard.Workflows.Standup do
 
   @impl true
   def example,
-    do: %{args: %{"channel" => "#demo-standup"}, says: "Draft my standup for #demo-standup"}
+    do: %{
+      args: %{"channel" => "#demo-standup"},
+      says: gettext_noop("Draft my standup for #demo-standup")
+    }
 
   @impl true
   def build(scope, args, ctx) do

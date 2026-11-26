@@ -49,17 +49,17 @@ msgstr "%{h} h %{m} min"
 msgid "%{m}m %{s}s"
 msgstr "%{m} min %{s} s"
 
-#: lib/switchboard_web/live/connections_live.ex:310
+#: lib/switchboard_web/live/connections_live.ex:330
 #, elixir-autogen, elixir-format
 msgid "%{system} linked. You can delete the key from your computer."
 msgstr "%{system} conectado. Ya puedes borrar la clave de tu ordenador."
 
-#: lib/switchboard_web/live/connections_live.ex:319
+#: lib/switchboard_web/live/connections_live.ex:339
 #, elixir-autogen, elixir-format
 msgid "%{system} rejected this key. Check it and try again."
 msgstr "%{system} ha rechazado esta clave. Revísala y vuelve a intentarlo."
 
-#: lib/switchboard_web/live/connections_live.ex:314
+#: lib/switchboard_web/live/connections_live.ex:334
 #, elixir-autogen, elixir-format
 msgid "%{system} saved, but it couldn't be tested now. Test it again later."
 msgstr "%{system} guardado, pero ahora no se ha podido probar. Pruébalo de nuevo más tarde."
@@ -69,12 +69,12 @@ msgstr "%{system} guardado, pero ahora no se ha podido probar. Pruébalo de nuev
 msgid "%{s}s"
 msgstr "%{s} s"
 
-#: lib/switchboard/upstreams/outline.ex:18
+#: lib/switchboard/upstreams/outline.ex:19
 #, elixir-autogen, elixir-format
 msgid "A personal API key. Read and write documents; Switchboard only creates drafts, never publishes."
 msgstr "Una clave de API personal. Lee y escribe documentos; Switchboard solo crea borradores, nunca publica."
 
-#: lib/switchboard/upstreams/argus.ex:21
+#: lib/switchboard/upstreams/argus.ex:22
 #, elixir-autogen, elixir-format
 msgid "A personal API token (starts with argus_). It sees your teams' projects."
 msgstr "Un token de API personal (empieza por argus_). Ve los proyectos de tus equipos."
@@ -84,7 +84,7 @@ msgstr "Un token de API personal (empieza por argus_). Ve los proyectos de tus e
 msgid "A personal access token (tick \"Ignore Two Factor Authentication\") and your user id, both shown once when you create it."
 msgstr "Un token de acceso personal (marca \"Ignorar la autenticación en dos pasos\") y tu id de usuario; ambos se muestran una sola vez al crearlo."
 
-#: lib/switchboard/upstreams/plane.ex:21
+#: lib/switchboard/upstreams/plane.ex:19
 #, elixir-autogen, elixir-format
 msgid "A personal access token. It acts as you, with your own workspace role."
 msgstr "Un token de acceso personal. Actúa como tú, con tu propio rol en el espacio de trabajo."
@@ -94,13 +94,13 @@ msgstr "Un token de acceso personal. Actúa como tú, con tu propio rol en el es
 msgid "A plain request to each system from the server. Any answer below 500 counts as up."
 msgstr "Una petición sencilla a cada sistema desde el servidor. Cualquier respuesta por debajo de 500 cuenta como disponible."
 
-#: lib/switchboard/upstreams/outline.ex:23
-#: lib/switchboard/upstreams/plane.ex:24
+#: lib/switchboard/upstreams/outline.ex:24
+#: lib/switchboard/upstreams/plane.ex:22
 #, elixir-autogen, elixir-format
 msgid "API key"
 msgstr "Clave de API"
 
-#: lib/switchboard/upstreams/argus.ex:24
+#: lib/switchboard/upstreams/argus.ex:25
 #, elixir-autogen, elixir-format
 msgid "API token"
 msgstr "Token de API"
@@ -115,16 +115,17 @@ msgstr "Token de acceso"
 msgid "Actions"
 msgstr "Acciones"
 
-#: lib/switchboard_web/components/layouts.ex:316
+#: lib/switchboard_web/components/layouts.ex:325
 #: lib/switchboard_web/live/admin/audit_live.ex:58
 #: lib/switchboard_web/live/admin/controls_live.ex:31
 #: lib/switchboard_web/live/admin/health_live.ex:30
+#: lib/switchboard_web/live/admin/onboarding_live.ex:24
 #: lib/switchboard_web/live/admin/people_live.ex:50
 #, elixir-autogen, elixir-format
 msgid "Admin"
 msgstr "Administración"
 
-#: lib/switchboard_web/components/layouts.ex:473
+#: lib/switchboard_web/components/layouts.ex:489
 #, elixir-autogen, elixir-format
 msgid "Admin controls"
 msgstr "Controles de administración"
@@ -165,7 +166,7 @@ msgstr "Se aplica a la siguiente llamada, para todo el mundo. Cada cambio queda 
 msgid "Approved a client"
 msgstr "Aprobó un cliente"
 
-#: lib/switchboard_web/components/layouts.ex:331
+#: lib/switchboard_web/components/layouts.ex:340
 #: lib/switchboard_web/live/admin/audit_live.ex:17
 #: lib/switchboard_web/live/admin/audit_live.ex:59
 #: lib/switchboard_web/live/admin/audit_live.ex:61
@@ -186,8 +187,8 @@ msgstr "Error de autorización"
 msgid "Authorize a client"
 msgstr "Autorizar un cliente"
 
-#: lib/switchboard_web/live/connections_live.ex:128
-#: lib/switchboard_web/live/connections_live.ex:132
+#: lib/switchboard_web/live/connections_live.ex:147
+#: lib/switchboard_web/live/connections_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "Belongs to %{who}"
 msgstr "Pertenece a %{who}"
@@ -203,7 +204,7 @@ msgid "Calls per person per minute"
 msgstr "Llamadas por persona y minuto"
 
 #: lib/switchboard_web/live/clients_live.ex:187
-#: lib/switchboard_web/live/connections_live.ex:92
+#: lib/switchboard_web/live/connections_live.ex:108
 #: lib/switchboard_web/live/watches_live.ex:84
 #, elixir-autogen, elixir-format
 msgid "Cancel"
@@ -250,8 +251,8 @@ msgstr "Cliente desconectado."
 msgid "Clients"
 msgstr "Clientes"
 
-#: lib/switchboard_web/components/layouts.ex:287
-#: lib/switchboard_web/components/layouts.ex:469
+#: lib/switchboard_web/components/layouts.ex:296
+#: lib/switchboard_web/components/layouts.ex:485
 #: lib/switchboard_web/live/clients_live.ex:14
 #: lib/switchboard_web/live/clients_live.ex:37
 #: lib/switchboard_web/live/clients_live.ex:40
@@ -281,7 +282,7 @@ msgid "Connect an agent"
 msgstr "Conectar un agente"
 
 #: lib/switchboard_web/live/clients_live.ex:70
-#: lib/switchboard_web/live/connections_live.ex:212
+#: lib/switchboard_web/live/connections_live.ex:231
 #, elixir-autogen, elixir-format
 msgid "Connected"
 msgstr "Conectado"
@@ -291,13 +292,13 @@ msgstr "Conectado"
 msgid "Connected clients"
 msgstr "Clientes conectados"
 
-#: lib/switchboard_web/components/layouts.ex:612
+#: lib/switchboard_web/components/layouts.ex:628
 #, elixir-autogen, elixir-format
 msgid "Connection lost"
 msgstr "Conexión perdida"
 
-#: lib/switchboard_web/components/layouts.ex:279
-#: lib/switchboard_web/components/layouts.ex:468
+#: lib/switchboard_web/components/layouts.ex:288
+#: lib/switchboard_web/components/layouts.ex:484
 #: lib/switchboard_web/live/connections_live.ex:14
 #: lib/switchboard_web/live/connections_live.ex:29
 #: lib/switchboard_web/live/connections_live.ex:32
@@ -305,7 +306,7 @@ msgstr "Conexión perdida"
 msgid "Connections"
 msgstr "Conexiones"
 
-#: lib/switchboard_web/components/layouts.ex:324
+#: lib/switchboard_web/components/layouts.ex:333
 #: lib/switchboard_web/live/admin/controls_live.ex:12
 #: lib/switchboard_web/live/admin/controls_live.ex:32
 #: lib/switchboard_web/live/admin/controls_live.ex:34
@@ -320,12 +321,17 @@ msgstr "Controles guardados."
 
 #: lib/switchboard_web/live/clients_live.ex:54
 #: lib/switchboard_web/live/clients_live.ex:161
+#: lib/switchboard_web/live/start_live.ex:329
+#: lib/switchboard_web/live/start_live.ex:344
+#: lib/switchboard_web/live/start_live.ex:495
 #, elixir-autogen, elixir-format
 msgid "Copied"
 msgstr "Copiado"
 
 #: lib/switchboard_web/live/clients_live.ex:53
 #: lib/switchboard_web/live/clients_live.ex:160
+#: lib/switchboard_web/live/start_live.ex:328
+#: lib/switchboard_web/live/start_live.ex:492
 #, elixir-autogen, elixir-format
 msgid "Copy"
 msgstr "Copiar"
@@ -340,22 +346,22 @@ msgstr "Cópialo ahora: Switchboard no podrá volver a mostrarlo."
 msgid "Couldn't copy to the clipboard"
 msgstr "No se ha podido copiar al portapapeles"
 
-#: lib/switchboard_web/live/connections_live.ex:301
+#: lib/switchboard_web/live/connections_live.ex:321
 #, elixir-autogen, elixir-format
 msgid "Couldn't reach the system. Try again later."
 msgstr "No se ha podido contactar con el sistema. Inténtalo más tarde."
 
-#: lib/switchboard_web/live/connections_live.ex:326
+#: lib/switchboard_web/live/connections_live.ex:346
 #, elixir-autogen, elixir-format
 msgid "Couldn't save the key."
 msgstr "No se ha podido guardar la clave."
 
-#: lib/switchboard_web/live/connections_live.ex:216
+#: lib/switchboard_web/live/connections_live.ex:235
 #, elixir-autogen, elixir-format
 msgid "Couldn't test"
 msgstr "No se pudo probar"
 
-#: lib/switchboard_web/live/connections_live.ex:79
+#: lib/switchboard_web/live/connections_live.ex:95
 #, elixir-autogen, elixir-format
 msgid "Create a key in %{system}"
 msgstr "Crear una clave en %{system}"
@@ -380,7 +386,7 @@ msgstr "Una pasarela para agentes de IA: Plane, Forgejo, Argus, Outline y Rocket
 msgid "Dark"
 msgstr "Oscuro"
 
-#: lib/switchboard_web/components/layouts.ex:502
+#: lib/switchboard_web/components/layouts.ex:518
 #, elixir-autogen, elixir-format
 msgid "Dark theme"
 msgstr "Tema oscuro"
@@ -422,7 +428,8 @@ msgid "Dismiss"
 msgstr "Descartar"
 
 #: lib/switchboard_web/live/clients_live.ex:166
-#: lib/switchboard_web/live/watches_live.ex:108
+#: lib/switchboard_web/live/start_live.ex:304
+#: lib/switchboard_web/live/watches_live.ex:113
 #, elixir-autogen, elixir-format
 msgid "Done"
 msgstr "Hecho"
@@ -470,7 +477,7 @@ msgstr "Todo lo que puede llamar a Switchboard en tu nombre. Revoca lo que no re
 msgid "Expires"
 msgstr "Caduca"
 
-#: lib/switchboard_web/live/connections_live.ex:321
+#: lib/switchboard_web/live/connections_live.ex:341
 #, elixir-autogen, elixir-format
 msgid "Fill in every field."
 msgstr "Rellena todos los campos."
@@ -495,7 +502,7 @@ msgstr "Forgejo no ha devuelto ningún código."
 msgid "Forgejo sign-in was cancelled."
 msgstr "Se canceló el inicio de sesión con Forgejo."
 
-#: lib/switchboard_web/components/layouts.ex:461
+#: lib/switchboard_web/components/layouts.ex:477
 #, elixir-autogen, elixir-format
 msgid "General"
 msgstr "General"
@@ -515,23 +522,23 @@ msgstr "Global"
 msgid "Go back to Switchboard and sign in again."
 msgstr "Vuelve a Switchboard e inicia sesión de nuevo."
 
-#: lib/switchboard_web/components/layouts.ex:466
+#: lib/switchboard_web/components/layouts.ex:482
 #, elixir-autogen, elixir-format
 msgid "Go to"
 msgstr "Ir a"
 
-#: lib/switchboard_web/live/connections_live.ex:214
+#: lib/switchboard_web/live/connections_live.ex:233
 #, elixir-autogen, elixir-format
 msgid "Key rejected"
 msgstr "Clave rechazada"
 
-#: lib/switchboard_web/live/connections_live.ex:290
+#: lib/switchboard_web/live/connections_live.ex:310
 #, elixir-autogen, elixir-format
 msgid "Key removed."
 msgstr "Clave eliminada."
 
-#: lib/switchboard_web/components/layouts.ex:256
-#: lib/switchboard_web/components/layouts.ex:433
+#: lib/switchboard_web/components/layouts.ex:257
+#: lib/switchboard_web/components/layouts.ex:449
 #, elixir-autogen, elixir-format
 msgid "Keyboard shortcuts"
 msgstr "Atajos de teclado"
@@ -557,7 +564,7 @@ msgstr "Último uso"
 msgid "Light"
 msgstr "Claro"
 
-#: lib/switchboard_web/components/layouts.ex:501
+#: lib/switchboard_web/components/layouts.ex:517
 #, elixir-autogen, elixir-format
 msgid "Light theme"
 msgstr "Tema claro"
@@ -567,17 +574,19 @@ msgstr "Tema claro"
 msgid "Limit saved."
 msgstr "Límite guardado."
 
-#: lib/switchboard_web/live/connections_live.ex:198
+#: lib/switchboard_web/live/connections_live.ex:217
+#: lib/switchboard_web/live/start_live.ex:427
 #, elixir-autogen, elixir-format
 msgid "Link"
 msgstr "Conectar"
 
-#: lib/switchboard_web/live/connections_live.ex:66
+#: lib/switchboard_web/live/connections_live.ex:82
 #, elixir-autogen, elixir-format
 msgid "Link %{system}"
 msgstr "Conectar %{system}"
 
-#: lib/switchboard_web/live/connections_live.ex:134
+#: lib/switchboard_web/live/connections_live.ex:153
+#: lib/switchboard_web/live/start_live.ex:380
 #, elixir-autogen, elixir-format
 msgid "Linked"
 msgstr "Conectado"
@@ -592,18 +601,18 @@ msgstr "Conectó una clave"
 msgid "Linked automatically when you sign in. Switchboard acts as you."
 msgstr "Se conecta automáticamente al iniciar sesión. Switchboard actúa como tú."
 
-#: lib/switchboard_web/live/activity_live.ex:86
+#: lib/switchboard_web/live/activity_live.ex:99
 #: lib/switchboard_web/live/admin/audit_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Load more"
 msgstr "Cargar más"
 
-#: lib/switchboard_web/components/layouts.ex:264
+#: lib/switchboard_web/components/layouts.ex:265
 #, elixir-autogen, elixir-format
 msgid "Log out"
 msgstr "Cerrar sesión"
 
-#: lib/switchboard_web/components/layouts.ex:271
+#: lib/switchboard_web/components/layouts.ex:272
 #, elixir-autogen, elixir-format
 msgid "Main"
 msgstr "Principal"
@@ -613,8 +622,8 @@ msgstr "Principal"
 msgid "Maintenance message"
 msgstr "Mensaje de mantenimiento"
 
-#: lib/switchboard_web/components/layouts.ex:295
-#: lib/switchboard_web/components/layouts.ex:470
+#: lib/switchboard_web/components/layouts.ex:304
+#: lib/switchboard_web/components/layouts.ex:486
 #: lib/switchboard_web/live/activity_live.ex:15
 #: lib/switchboard_web/live/activity_live.ex:46
 #: lib/switchboard_web/live/activity_live.ex:48
@@ -654,17 +663,19 @@ msgstr "Aún no hay clientes"
 msgid "No personal tokens"
 msgstr "No hay tokens personales"
 
-#: lib/switchboard_web/live/connections_live.ex:220
+#: lib/switchboard_web/live/admin/onboarding_live.ex:64
+#: lib/switchboard_web/live/connections_live.ex:239
 #, elixir-autogen, elixir-format
 msgid "Not connected"
 msgstr "Sin conectar"
 
-#: lib/switchboard_web/live/connections_live.ex:218
+#: lib/switchboard_web/live/connections_live.ex:237
 #, elixir-autogen, elixir-format
 msgid "Not tested"
 msgstr "Sin probar"
 
-#: lib/switchboard_web/components/audit_components.ex:20
+#: lib/switchboard_web/components/audit_components.ex:24
+#: lib/switchboard_web/live/activity_live.ex:85
 #, elixir-autogen, elixir-format
 msgid "Nothing here yet"
 msgstr "Aún no hay nada"
@@ -674,7 +685,7 @@ msgstr "Aún no hay nada"
 msgid "OK"
 msgstr "OK"
 
-#: lib/switchboard_web/components/layouts.ex:338
+#: lib/switchboard_web/components/layouts.ex:347
 #: lib/switchboard_web/live/admin/people_live.ex:16
 #: lib/switchboard_web/live/admin/people_live.ex:51
 #: lib/switchboard_web/live/admin/people_live.ex:53
@@ -682,6 +693,7 @@ msgstr "OK"
 msgid "People"
 msgstr "Personas"
 
+#: lib/switchboard_web/live/admin/onboarding_live.ex:36
 #: lib/switchboard_web/live/admin/people_live.ex:62
 #, elixir-autogen, elixir-format
 msgid "Person"
@@ -697,9 +709,9 @@ msgstr "Tokens personales"
 msgid "Preferences"
 msgstr "Preferencias"
 
-#: lib/switchboard_web/components/layouts.ex:253
-#: lib/switchboard_web/components/layouts.ex:311
-#: lib/switchboard_web/components/layouts.ex:472
+#: lib/switchboard_web/components/layouts.ex:254
+#: lib/switchboard_web/components/layouts.ex:320
+#: lib/switchboard_web/components/layouts.ex:488
 #: lib/switchboard_web/live/profile_live.ex:15
 #: lib/switchboard_web/live/profile_live.ex:23
 #: lib/switchboard_web/live/profile_live.ex:24
@@ -722,8 +734,8 @@ msgstr "Límite alcanzado"
 msgid "Read-only mode"
 msgstr "Modo solo lectura"
 
-#: lib/switchboard_web/components/layouts.ex:621
-#: lib/switchboard_web/components/layouts.ex:636
+#: lib/switchboard_web/components/layouts.ex:637
+#: lib/switchboard_web/components/layouts.ex:652
 #, elixir-autogen, elixir-format
 msgid "Reconnecting…"
 msgstr "Reconectando…"
@@ -733,12 +745,12 @@ msgstr "Reconectando…"
 msgid "Refuses every tool that changes data. Reads keep working."
 msgstr "Rechaza toda herramienta que cambie datos. Las lecturas siguen funcionando."
 
-#: lib/switchboard_web/live/connections_live.ex:179
+#: lib/switchboard_web/live/connections_live.ex:198
 #, elixir-autogen, elixir-format
 msgid "Remove"
 msgstr "Eliminar"
 
-#: lib/switchboard_web/live/connections_live.ex:184
+#: lib/switchboard_web/live/connections_live.ex:203
 #, elixir-autogen, elixir-format
 msgid "Remove the %{system} key from Switchboard?"
 msgstr "¿Eliminar la clave de %{system} de Switchboard?"
@@ -748,7 +760,7 @@ msgstr "¿Eliminar la clave de %{system} de Switchboard?"
 msgid "Removed a key"
 msgstr "Eliminó una clave"
 
-#: lib/switchboard_web/live/connections_live.ex:174
+#: lib/switchboard_web/live/connections_live.ex:193
 #, elixir-autogen, elixir-format
 msgid "Replace"
 msgstr "Sustituir"
@@ -825,7 +837,7 @@ msgstr "Buscar"
 msgid "Set"
 msgstr "Aplicar"
 
-#: lib/switchboard_web/components/layouts.ex:463
+#: lib/switchboard_web/components/layouts.ex:479
 #, elixir-autogen, elixir-format
 msgid "Show keyboard shortcuts"
 msgstr "Mostrar atajos de teclado"
@@ -875,7 +887,7 @@ msgstr "Cerró sesión"
 msgid "Signing in with Forgejo failed. Try again."
 msgstr "No se ha podido iniciar sesión con Forgejo. Inténtalo de nuevo."
 
-#: lib/switchboard_web/components/layouts.ex:627
+#: lib/switchboard_web/components/layouts.ex:643
 #, elixir-autogen, elixir-format
 msgid "Something went wrong"
 msgstr "Algo ha fallado"
@@ -895,17 +907,17 @@ msgstr "Switchboard llama a cada sistema como tú, con tus propias claves, guard
 msgid "System"
 msgstr "Sistema"
 
-#: lib/switchboard_web/components/layouts.ex:500
+#: lib/switchboard_web/components/layouts.ex:516
 #, elixir-autogen, elixir-format
 msgid "System theme"
 msgstr "Tema del sistema"
 
-#: lib/switchboard_web/live/connections_live.ex:165
+#: lib/switchboard_web/live/connections_live.ex:184
 #, elixir-autogen, elixir-format
 msgid "Test"
 msgstr "Probar"
 
-#: lib/switchboard_web/live/connections_live.ex:94
+#: lib/switchboard_web/live/connections_live.ex:110
 #, elixir-autogen, elixir-format
 msgid "Test and save"
 msgstr "Probar y guardar"
@@ -915,7 +927,7 @@ msgstr "Probar y guardar"
 msgid "Tested a key"
 msgstr "Probó una clave"
 
-#: lib/switchboard_web/live/connections_live.ex:324
+#: lib/switchboard_web/live/connections_live.ex:344
 #, elixir-autogen, elixir-format
 msgid "That doesn't look like a %{system} key."
 msgstr "Eso no parece una clave de %{system}."
@@ -925,12 +937,12 @@ msgstr "Eso no parece una clave de %{system}."
 msgid "The client will be able to call Switchboard tools as you, with your own permissions in each system you connected. Write tools always ask you first."
 msgstr "El cliente podrá usar las herramientas de Switchboard en tu nombre, con tus propios permisos en cada sistema que hayas conectado. Las herramientas de escritura siempre te preguntan antes."
 
-#: lib/switchboard_web/live/connections_live.ex:300
+#: lib/switchboard_web/live/connections_live.ex:320
 #, elixir-autogen, elixir-format
 msgid "The key was rejected."
 msgstr "La clave ha sido rechazada."
 
-#: lib/switchboard_web/live/connections_live.ex:299
+#: lib/switchboard_web/live/connections_live.ex:319
 #, elixir-autogen, elixir-format
 msgid "The key works."
 msgstr "La clave funciona."
@@ -940,7 +952,7 @@ msgstr "La clave funciona."
 msgid "The sign-in request expired or did not come from this browser. Try again."
 msgstr "La solicitud de inicio de sesión ha caducado o no viene de este navegador. Inténtalo de nuevo."
 
-#: lib/switchboard_web/components/layouts.ex:491
+#: lib/switchboard_web/components/layouts.ex:507
 #: lib/switchboard_web/live/profile_live.ex:51
 #, elixir-autogen, elixir-format
 msgid "Theme"
@@ -951,7 +963,7 @@ msgstr "Tema"
 msgid "This client registered itself, so its name is not verified. Allow it only if you just started the connection yourself."
 msgstr "Este cliente se registró por sí mismo, así que su nombre no está verificado. Permítelo solo si acabas de iniciar tú la conexión."
 
-#: lib/switchboard_web/live/connections_live.ex:148
+#: lib/switchboard_web/live/connections_live.ex:167
 #, elixir-autogen, elixir-format
 msgid "This key belongs to someone else, not to %{you}. Link your own key."
 msgstr "Esta clave pertenece a otra persona, no a %{you}. Conecta tu propia clave."
@@ -962,7 +974,7 @@ msgid "Time zone"
 msgstr "Zona horaria"
 
 #: lib/switchboard_web/components/layouts.ex:74
-#: lib/switchboard_web/components/layouts.ex:464
+#: lib/switchboard_web/components/layouts.ex:480
 #, elixir-autogen, elixir-format
 msgid "Toggle sidebar"
 msgstr "Mostrar u ocultar la barra lateral"
@@ -998,6 +1010,7 @@ msgstr "Llamadas a herramientas"
 msgid "Tools"
 msgstr "Herramientas"
 
+#: lib/switchboard_web/live/admin/onboarding_live.ex:59
 #: lib/switchboard_web/live/clients_live.ex:67
 #, elixir-autogen, elixir-format
 msgid "Unnamed client"
@@ -1008,7 +1021,7 @@ msgstr "Cliente sin nombre"
 msgid "Up"
 msgstr "Disponible"
 
-#: lib/switchboard_web/components/layouts.ex:345
+#: lib/switchboard_web/components/layouts.ex:361
 #: lib/switchboard_web/live/admin/health_live.ex:9
 #: lib/switchboard_web/live/admin/health_live.ex:31
 #: lib/switchboard_web/live/admin/health_live.ex:44
@@ -1094,17 +1107,17 @@ msgstr "ahora mismo"
 msgid "never"
 msgstr "nunca"
 
-#: lib/switchboard_web/live/connections_live.ex:139
+#: lib/switchboard_web/live/connections_live.ex:158
 #, elixir-autogen, elixir-format
 msgid "tested"
 msgstr "probada"
 
-#: lib/switchboard_web/components/layouts.ex:446
+#: lib/switchboard_web/components/layouts.ex:462
 #, elixir-autogen, elixir-format
 msgid "then"
 msgstr "después"
 
-#: lib/switchboard_web/components/audit_components.ex:43
+#: lib/switchboard_web/components/audit_components.ex:48
 #, elixir-autogen, elixir-format
 msgid "via %{client}"
 msgstr "vía %{client}"
@@ -1119,7 +1132,7 @@ msgstr "escritura"
 msgid "yesterday"
 msgstr "ayer"
 
-#: lib/switchboard_web/live/connections_live.ex:46
+#: lib/switchboard_web/live/connections_live.ex:62
 #, elixir-autogen, elixir-format
 msgid "Already have Plane, Rocket.Chat or wiki keys on your computer? Paste them here, then delete them from your computer and your agent's settings."
 msgstr "¿Ya tienes claves de Plane, Rocket.Chat o la wiki en tu ordenador? Pégalas aquí y bórralas de tu ordenador y de la configuración de tu agente."
@@ -1159,12 +1172,12 @@ msgstr "%{icon} Versión %{repo} %{name}: %{status}"
 msgid "%{id} moved to %{state} (was %{previous})."
 msgstr "%{id} pasó a %{state} (antes: %{previous})."
 
-#: lib/switchboard_web/live/watches_live.ex:105
+#: lib/switchboard_web/live/watches_live.ex:110
 #, elixir-autogen, elixir-format
 msgid "%{what}, only if it fails"
 msgstr "%{what}, solo si falla"
 
-#: lib/switchboard_web/live/watches_live.ex:122
+#: lib/switchboard_web/live/watches_live.ex:127
 #, elixir-autogen, elixir-format
 msgid "Active"
 msgstr "Activa"
@@ -1174,7 +1187,7 @@ msgstr "Activa"
 msgid "Active watches"
 msgstr "Avisos activos"
 
-#: lib/switchboard_web/live/watches_live.ex:110
+#: lib/switchboard_web/live/watches_live.ex:115
 #, elixir-autogen, elixir-format
 msgid "Any change"
 msgstr "Cualquier cambio"
@@ -1184,7 +1197,7 @@ msgstr "Cualquier cambio"
 msgid "Ask your agent to watch CI, a task or a release, and Switchboard sends you a Rocket.Chat DM when it finishes. Only you get the notices."
 msgstr "Pide a tu agente que vigile la CI, una tarea o una versión, y Switchboard te enviará un mensaje directo en Rocket.Chat cuando termine. Los avisos solo te llegan a ti."
 
-#: lib/switchboard_web/live/watches_live.ex:99
+#: lib/switchboard_web/live/watches_live.ex:104
 #, elixir-autogen, elixir-format
 msgid "CI"
 msgstr "CI"
@@ -1194,7 +1207,7 @@ msgstr "CI"
 msgid "CI finished (%{status}): %{what}"
 msgstr "CI terminada (%{status}): %{what}"
 
-#: lib/switchboard_web/live/watches_live.ex:104
+#: lib/switchboard_web/live/watches_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "CI to finish"
 msgstr "Que termine la CI"
@@ -1204,7 +1217,7 @@ msgstr "Que termine la CI"
 msgid "Cancel this watch? No notice will be sent."
 msgstr "¿Cancelar este aviso? No se enviará ningún mensaje."
 
-#: lib/switchboard_web/live/watches_live.ex:123
+#: lib/switchboard_web/live/watches_live.ex:128
 #, elixir-autogen, elixir-format
 msgid "Cancelled"
 msgstr "Cancelado"
@@ -1214,7 +1227,7 @@ msgstr "Cancelado"
 msgid "Cancelled a watch"
 msgstr "Canceló un aviso"
 
-#: lib/switchboard_web/live/watches_live.ex:133
+#: lib/switchboard_web/live/watches_live.ex:138
 #, elixir-autogen, elixir-format
 msgid "Ended"
 msgstr "Terminado"
@@ -1224,7 +1237,7 @@ msgstr "Terminado"
 msgid "Errors it introduced:"
 msgstr "Errores que introdujo:"
 
-#: lib/switchboard_web/live/watches_live.ex:129
+#: lib/switchboard_web/live/watches_live.ex:134
 #, elixir-autogen, elixir-format
 msgid "Expired"
 msgstr "Caducado"
@@ -1244,8 +1257,8 @@ msgstr "Trabajo %{job}"
 msgid "Job %{job}, step \"%{step}\""
 msgstr "Trabajo %{job}, paso \"%{step}\""
 
-#: lib/switchboard_web/components/layouts.ex:303
-#: lib/switchboard_web/components/layouts.ex:471
+#: lib/switchboard_web/components/layouts.ex:312
+#: lib/switchboard_web/components/layouts.ex:487
 #: lib/switchboard_web/live/watches_live.ex:11
 #: lib/switchboard_web/live/watches_live.ex:32
 #: lib/switchboard_web/live/watches_live.ex:34
@@ -1253,12 +1266,12 @@ msgstr "Trabajo %{job}, paso \"%{step}\""
 msgid "My watches"
 msgstr "Mis avisos"
 
-#: lib/switchboard_web/live/watches_live.ex:116
+#: lib/switchboard_web/live/watches_live.ex:121
 #, elixir-autogen, elixir-format
 msgid "Next release"
 msgstr "Próxima versión"
 
-#: lib/switchboard_web/live/watches_live.ex:115
+#: lib/switchboard_web/live/watches_live.ex:120
 #, elixir-autogen, elixir-format
 msgid "Next release and its 24 h health"
 msgstr "Próxima versión y su estado a las 24 h"
@@ -1278,12 +1291,12 @@ msgstr "Ni avisos nuevos, ni comprobaciones, ni mensajes hasta que se reactive. 
 msgid "No watches"
 msgstr "Sin avisos"
 
-#: lib/switchboard_web/live/watches_live.ex:127
+#: lib/switchboard_web/live/watches_live.ex:132
 #, elixir-autogen, elixir-format
 msgid "Notified"
 msgstr "Avisado"
 
-#: lib/switchboard_web/live/watches_live.ex:128
+#: lib/switchboard_web/live/watches_live.ex:133
 #, elixir-autogen, elixir-format
 msgid "Passed (no notice)"
 msgstr "Pasó (sin mensaje)"
@@ -1293,12 +1306,12 @@ msgstr "Pasó (sin mensaje)"
 msgid "Pause watches"
 msgstr "Pausar avisos"
 
-#: lib/switchboard_web/live/watches_live.ex:101
+#: lib/switchboard_web/live/watches_live.ex:106
 #, elixir-autogen, elixir-format
 msgid "Release"
 msgstr "Versión"
 
-#: lib/switchboard_web/live/watches_live.ex:109
+#: lib/switchboard_web/live/watches_live.ex:114
 #, elixir-autogen, elixir-format
 msgid "Released"
 msgstr "Publicada"
@@ -1308,32 +1321,32 @@ msgstr "Publicada"
 msgid "Status"
 msgstr "Estado"
 
-#: lib/switchboard_web/live/watches_live.ex:130
+#: lib/switchboard_web/live/watches_live.ex:135
 #, elixir-autogen, elixir-format
 msgid "Stopped: connection missing"
 msgstr "Detenido: falta la conexión"
 
-#: lib/switchboard_web/live/watches_live.ex:131
+#: lib/switchboard_web/live/watches_live.ex:136
 #, elixir-autogen, elixir-format
 msgid "Stopped: key rejected"
 msgstr "Detenido: clave rechazada"
 
-#: lib/switchboard_web/live/watches_live.ex:132
+#: lib/switchboard_web/live/watches_live.ex:137
 #, elixir-autogen, elixir-format
 msgid "Stopped: no access"
 msgstr "Detenido: sin acceso"
 
-#: lib/switchboard_web/live/watches_live.ex:100
+#: lib/switchboard_web/live/watches_live.ex:105
 #, elixir-autogen, elixir-format
 msgid "Task"
 msgstr "Tarea"
 
-#: lib/switchboard_web/live/watches_live.ex:151
+#: lib/switchboard_web/live/watches_live.ex:156
 #, elixir-autogen, elixir-format
 msgid "That watch already ended."
 msgstr "Ese aviso ya terminó."
 
-#: lib/switchboard_web/live/watches_live.ex:104
+#: lib/switchboard_web/live/watches_live.ex:109
 #, elixir-autogen, elixir-format
 msgid "The next CI run"
 msgstr "La próxima ejecución de CI"
@@ -1343,7 +1356,7 @@ msgstr "La próxima ejecución de CI"
 msgid "Try \"DM me when CI on my PR finishes\" or \"tell me when DEMO-12 ships\" in your agent."
 msgstr "Prueba con «avísame cuando termine la CI de mi PR» o «dime cuando DEMO-12 llegue a producción» en tu agente."
 
-#: lib/switchboard_web/live/watches_live.ex:120
+#: lib/switchboard_web/live/watches_live.ex:125
 #, elixir-autogen, elixir-format
 msgid "Waiting for health"
 msgstr "Esperando el estado"
@@ -1353,7 +1366,7 @@ msgstr "Esperando el estado"
 msgid "Waits for"
 msgstr "Espera"
 
-#: lib/switchboard_web/live/watches_live.ex:148
+#: lib/switchboard_web/live/watches_live.ex:153
 #, elixir-autogen, elixir-format
 msgid "Watch cancelled."
 msgstr "Aviso cancelado."
@@ -1432,3 +1445,388 @@ msgstr "Flujo de trabajo"
 #, elixir-autogen, elixir-format
 msgid "Workflows"
 msgstr "Flujos de trabajo"
+
+#: lib/switchboard_web/live/start_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "%{client} called Switchboard"
+msgstr "%{client} llamó a Switchboard"
+
+#: lib/switchboard_web/live/start_live.ex:112
+#, elixir-autogen, elixir-format
+msgid "%{done} of 4 done"
+msgstr "%{done} de 4 hechos"
+
+#: lib/switchboard_web/live/start_live.ex:169
+#, elixir-autogen, elixir-format
+msgid "%{linked} of %{total} linked"
+msgstr "%{linked} de %{total} conectadas"
+
+#: lib/switchboard_web/live/start_live.ex:189
+#, elixir-autogen, elixir-format
+msgid "%{tried} of %{total} tried"
+msgstr "%{tried} de %{total} probadas"
+
+#: lib/switchboard_web/live/start_live.ex:129
+#, elixir-autogen, elixir-format
+msgid "A client"
+msgstr "Un cliente"
+
+#: lib/switchboard_web/live/admin/onboarding_live.ex:67
+#, elixir-autogen, elixir-format
+msgid "Accounts"
+msgstr "Cuentas"
+
+#: lib/switchboard_web/live/admin/onboarding_live.ex:49
+#, elixir-autogen, elixir-format
+msgid "Agent"
+msgstr "Agente"
+
+#: lib/switchboard/onboarding.ex:61
+#, elixir-autogen, elixir-format
+msgid "Any new errors in my projects?"
+msgstr "¿Hay errores nuevos en mis proyectos?"
+
+#: lib/switchboard_web/live/start_live.ex:156
+#, elixir-autogen, elixir-format
+msgid "Check it works: ask your agent"
+msgstr "Comprueba que funciona: pregúntale a tu agente"
+
+#: lib/switchboard_web/live/start_live.ex:228
+#, elixir-autogen, elixir-format
+msgid "Codex has no slash commands for these: ask in your own words and the agent runs them."
+msgstr "Codex no tiene comandos con barra para estos: pídelo con tus palabras y el agente los ejecuta."
+
+#: lib/switchboard_web/live/start_live.ex:242
+#, elixir-autogen, elixir-format
+msgid "Command"
+msgstr "Comando"
+
+#: lib/switchboard_web/live/start_live.ex:219
+#, elixir-autogen, elixir-format
+msgid "Commands"
+msgstr "Comandos"
+
+#: lib/switchboard_web/live/start_live.ex:236
+#, elixir-autogen, elixir-format
+msgid "Commands only read; your agent asks before it posts or changes anything."
+msgstr "Los comandos solo leen; tu agente te pregunta antes de publicar o cambiar nada."
+
+#: lib/switchboard_web/live/start_live.ex:125
+#, elixir-autogen, elixir-format
+msgid "Connect your agent"
+msgstr "Conecta tu agente"
+
+#: lib/switchboard_web/live/start_live.ex:197
+#, elixir-autogen, elixir-format
+msgid "Copy one into your agent. Each one ticks off here as soon as your agent has used it."
+msgstr "Copia una en tu agente. Cada una se marca aquí en cuanto tu agente la ha usado."
+
+#: lib/switchboard_web/live/start_live.ex:419
+#, elixir-autogen, elixir-format
+msgid "Create a key"
+msgstr "Crear una clave"
+
+#: lib/switchboard/workflows/standup.ex:54
+#, elixir-autogen, elixir-format
+msgid "Draft my standup for #demo-standup"
+msgstr "Prepara mi standup para #demo-standup"
+
+#: lib/switchboard/onboarding.ex:110
+#, elixir-autogen, elixir-format
+msgid "Draft my standup."
+msgstr "Prepara mi standup."
+
+#: lib/switchboard/workflows/standup.ex:19
+#, elixir-autogen, elixir-format
+msgid "Draft your standup: yesterday, today and blockers"
+msgstr "Redactar tu standup: ayer, hoy y bloqueos"
+
+#: lib/switchboard/workflows/inbox.ex:22
+#, elixir-autogen, elixir-format
+msgid "Everything waiting for you: messages, reviews, tasks and watches"
+msgstr "Todo lo que te espera: mensajes, revisiones, tareas y avisos"
+
+#: lib/switchboard_web/live/start_live.ex:103
+#, elixir-autogen, elixir-format
+msgid "Four steps from signing in to your agent doing something useful with your tasks, code, errors, wiki and chat."
+msgstr "Cuatro pasos desde que entras hasta que tu agente hace algo útil con tus tareas, código, errores, wiki y chat."
+
+#: lib/switchboard_web/live/start_live.ex:406
+#, elixir-autogen, elixir-format
+msgid "From your sign-in"
+msgstr "Desde tu inicio de sesión"
+
+#: lib/switchboard_web/components/layouts.ex:280
+#: lib/switchboard_web/live/activity_live.ex:91
+#: lib/switchboard_web/live/connections_live.ex:52
+#: lib/switchboard_web/live/start_live.ex:23
+#: lib/switchboard_web/live/start_live.ex:98
+#: lib/switchboard_web/live/start_live.ex:101
+#, elixir-autogen, elixir-format
+msgid "Get started"
+msgstr "Primeros pasos"
+
+#: lib/switchboard/workflows/handoff.ex:59
+#, elixir-autogen, elixir-format
+msgid "Hand DEMO-12 over to QA in #demo-qa"
+msgstr "Pasa DEMO-12 a QA en #demo-qa"
+
+#: lib/switchboard/workflows/handoff.ex:24
+#, elixir-autogen, elixir-format
+msgid "Hand a task over to QA with a test plan"
+msgstr "Pasar una tarea a QA con un plan de pruebas"
+
+#: lib/switchboard/onboarding.ex:124
+#, elixir-autogen, elixir-format
+msgid "Hand off %{task} to QA."
+msgstr "Pasa %{task} a QA."
+
+#: lib/switchboard_web/live/start_live.ex:232
+#, elixir-autogen, elixir-format
+msgid "In Claude Code, type / and the command's name. In Codex, ask in your own words."
+msgstr "En Claude Code, escribe / y el nombre del comando. En Codex, pídelo con tus palabras."
+
+#: lib/switchboard_web/live/admin/onboarding_live.ex:88
+#, elixir-autogen, elixir-format
+msgid "Last active"
+msgstr "Última actividad"
+
+#: lib/switchboard/workflows/pickup.ex:51
+#, elixir-autogen, elixir-format
+msgid "Let's pick up DEMO-12"
+msgstr "Empecemos con DEMO-12"
+
+#: lib/switchboard_web/live/start_live.ex:484
+#, elixir-autogen, elixir-format
+msgid "Link %{system} to try this"
+msgstr "Conecta %{system} para probarlo"
+
+#: lib/switchboard_web/live/start_live.ex:165
+#, elixir-autogen, elixir-format
+msgid "Link your accounts"
+msgstr "Conecta tus cuentas"
+
+#: lib/switchboard_web/live/start_live.ex:505
+#, elixir-autogen, elixir-format
+msgid "Look around"
+msgstr "Para empezar"
+
+#: lib/switchboard_web/live/start_live.ex:427
+#, elixir-autogen, elixir-format
+msgid "Manage"
+msgstr "Gestionar"
+
+#: lib/switchboard_web/live/watches_live.ex:94
+#, elixir-autogen, elixir-format
+msgid "More things to try"
+msgstr "Más cosas que probar"
+
+#: lib/switchboard_web/live/start_live.ex:382
+#, elixir-autogen, elixir-format
+msgid "Needs attention"
+msgstr "Requiere atención"
+
+#: lib/switchboard_web/live/admin/onboarding_live.ex:92
+#, elixir-autogen, elixir-format
+msgid "Nobody has signed in yet"
+msgstr "Todavía no ha entrado nadie"
+
+#: lib/switchboard_web/live/start_live.ex:384
+#, elixir-autogen, elixir-format
+msgid "Not linked"
+msgstr "Sin conectar"
+
+#: lib/switchboard_web/live/connections_live.ex:47
+#, elixir-autogen, elixir-format
+msgid "Nothing linked yet. Get started shows what each system unlocks and where to create its key."
+msgstr "Aún no has conectado nada. En Primeros pasos verás qué permite cada sistema y dónde crear su clave."
+
+#: lib/switchboard_web/components/layouts.ex:354
+#: lib/switchboard_web/live/admin/onboarding_live.ex:16
+#: lib/switchboard_web/live/admin/onboarding_live.ex:25
+#: lib/switchboard_web/live/admin/onboarding_live.ex:27
+#, elixir-autogen, elixir-format
+msgid "Onboarding"
+msgstr "Incorporación"
+
+#: lib/switchboard_web/live/activity_live.ex:86
+#, elixir-autogen, elixir-format
+msgid "Once your agent calls Switchboard, every call shows up here. Get started shows how to connect it and what to try first."
+msgstr "Cuando tu agente llame a Switchboard, cada llamada aparecerá aquí. En Primeros pasos verás cómo conectarlo y qué probar primero."
+
+#: lib/switchboard/onboarding.ex:82
+#, elixir-autogen, elixir-format
+msgid "Pick up %{task}"
+msgstr "Empieza con %{task}"
+
+#: lib/switchboard_web/live/start_live.ex:111
+#, elixir-autogen, elixir-format
+msgid "Progress"
+msgstr "Progreso"
+
+#: lib/switchboard_web/live/admin/onboarding_live.ex:75
+#: lib/switchboard_web/live/admin/onboarding_live.ex:81
+#, elixir-autogen, elixir-format
+msgid "Prompts tried"
+msgstr "Peticiones probadas"
+
+#: lib/switchboard_web/live/start_live.ex:148
+#, elixir-autogen, elixir-format
+msgid "Run these in a terminal (the login needs an interactive one). Your browser opens to sign in with Forgejo."
+msgstr "Ejecútalos en una terminal (el inicio de sesión necesita una interactiva). El navegador se abrirá para entrar con Forgejo."
+
+#: lib/switchboard_web/live/start_live.ex:146
+#, elixir-autogen, elixir-format
+msgid "Run this in a terminal. Codex opens your browser right away to sign in."
+msgstr "Ejecútalo en una terminal. Codex abre el navegador enseguida para iniciar sesión."
+
+#: lib/switchboard/onboarding.ex:103
+#, elixir-autogen, elixir-format
+msgid "Search the wiki for how we deploy."
+msgstr "Busca en la wiki cómo desplegamos."
+
+#: lib/switchboard_web/live/start_live.ex:408
+#, elixir-autogen, elixir-format
+msgid "Sign out and in again"
+msgstr "Sal y vuelve a entrar"
+
+#: lib/switchboard/workflows/pickup.ex:25
+#, elixir-autogen, elixir-format
+msgid "Start a task: what's asked, where the code goes, a branch name"
+msgstr "Empezar una tarea: qué se pide, dónde tocar el código y nombre de rama"
+
+#: lib/switchboard_web/live/start_live.ex:118
+#, elixir-autogen, elixir-format
+msgid "Steps done"
+msgstr "Pasos hechos"
+
+#: lib/switchboard_web/live/start_live.ex:177
+#, elixir-autogen, elixir-format
+msgid "Switchboard calls each system as you, with your own key. Create the key in the system, then paste it on Connections."
+msgstr "Switchboard llama a cada sistema como tú, con tu propia clave. Crea la clave en el sistema y pégala en Conexiones."
+
+#: lib/switchboard_web/live/start_live.ex:222
+#, elixir-autogen, elixir-format
+msgid "Team workflows, ready-made"
+msgstr "Flujos de equipo listos para usar"
+
+#: lib/switchboard/onboarding.ex:96
+#, elixir-autogen, elixir-format
+msgid "Tell me when CI finishes on this PR."
+msgstr "Avísame cuando termine la CI de esta PR."
+
+#: lib/switchboard/onboarding.ex:117
+#, elixir-autogen, elixir-format
+msgid "Triage %{error} and suggest a fix."
+msgstr "Analiza %{error} y propón una solución."
+
+#: lib/switchboard/workflows/triage.ex:58
+#, elixir-autogen, elixir-format
+msgid "Triage Argus demo-api/7"
+msgstr "Analiza el error de Argus demo-api/7"
+
+#: lib/switchboard_web/live/start_live.ex:186
+#, elixir-autogen, elixir-format
+msgid "Try these"
+msgstr "Prueba esto"
+
+#: lib/switchboard/onboarding.ex:54
+#, elixir-autogen, elixir-format
+msgid "What DMs do I need to answer?"
+msgstr "¿Qué mensajes directos tengo que contestar?"
+
+#: lib/switchboard/workflows/help.ex:18
+#, elixir-autogen, elixir-format
+msgid "What Switchboard can do for you, and what's left to set up"
+msgstr "Qué puede hacer Switchboard por ti y qué te falta configurar"
+
+#: lib/switchboard/workflows/help.ex:41
+#, elixir-autogen, elixir-format
+msgid "What can Switchboard do for me?"
+msgstr "¿Qué puede hacer Switchboard por mí?"
+
+#: lib/switchboard_web/live/start_live.ex:243
+#, elixir-autogen, elixir-format
+msgid "What for"
+msgstr "Para qué"
+
+#: lib/switchboard/onboarding.ex:68
+#, elixir-autogen, elixir-format
+msgid "What shipped in the last release?"
+msgstr "¿Qué salió en la última versión?"
+
+#: lib/switchboard/onboarding.ex:47
+#: lib/switchboard/workflows/next.ex:44
+#, elixir-autogen, elixir-format
+msgid "What should I work on next?"
+msgstr "¿En qué debería trabajar ahora?"
+
+#: lib/switchboard/workflows/next.ex:19
+#, elixir-autogen, elixir-format
+msgid "What to do now: at most 5 things, each with a reason"
+msgstr "Qué hacer ahora: como mucho 5 cosas, con el motivo"
+
+#: lib/switchboard/workflows/inbox.ex:47
+#, elixir-autogen, elixir-format
+msgid "What's waiting for me?"
+msgstr "¿Qué tengo pendiente?"
+
+#: lib/switchboard/onboarding.ex:89
+#, elixir-autogen, elixir-format
+msgid "Where is %{task} at? PRs, CI and release."
+msgstr "¿Cómo va %{task}? PR, CI y versión."
+
+#: lib/switchboard_web/live/start_live.ex:157
+#, elixir-autogen, elixir-format
+msgid "Who am I in Switchboard?"
+msgstr "¿Quién soy en Switchboard?"
+
+#: lib/switchboard_web/live/admin/onboarding_live.ex:29
+#, elixir-autogen, elixir-format
+msgid "Who got how far on Get started. Someone with no agent call, or nothing tried after a few days, may be stuck."
+msgstr "Hasta dónde ha llegado cada persona en Primeros pasos. Quien no tiene llamadas de su agente, o no ha probado nada tras unos días, puede estar atascado."
+
+#: lib/switchboard/workflows/triage.ex:26
+#, elixir-autogen, elixir-format
+msgid "Why an Argus error happens and how to fix it"
+msgstr "Por qué ocurre un error de Argus y cómo arreglarlo"
+
+#: lib/switchboard/onboarding.ex:75
+#, elixir-autogen, elixir-format
+msgid "Why did CI fail on my last PR?"
+msgstr "¿Por qué falló la CI de mi última PR?"
+
+#: lib/switchboard_web/live/start_live.ex:506
+#, elixir-autogen, elixir-format
+msgid "Work"
+msgstr "Trabajo"
+
+#: lib/switchboard_web/live/start_live.ex:507
+#, elixir-autogen, elixir-format
+msgid "Wow"
+msgstr "Lo mejor"
+
+#: lib/switchboard/onboarding.ex:254
+#, elixir-autogen, elixir-format
+msgid "errors in your projects"
+msgstr "los errores de tus proyectos"
+
+#: lib/switchboard/onboarding.ex:255
+#, elixir-autogen, elixir-format
+msgid "wiki search and drafts"
+msgstr "buscar en la wiki y crear borradores"
+
+#: lib/switchboard/onboarding.ex:256
+#, elixir-autogen, elixir-format
+msgid "your DMs and mentions, and messages you approve"
+msgstr "tus mensajes directos y menciones, y los mensajes que apruebes"
+
+#: lib/switchboard/onboarding.ex:252
+#, elixir-autogen, elixir-format
+msgid "your pull requests, CI and reviews"
+msgstr "tus pull requests, CI y revisiones"
+
+#: lib/switchboard/onboarding.ex:253
+#, elixir-autogen, elixir-format
+msgid "your tasks and their comments"
+msgstr "tus tareas y sus comentarios"

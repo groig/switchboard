@@ -180,7 +180,7 @@ defmodule Switchboard.NoSecretsInLogsTest do
         conn =
           get(recycle(conn), ~p"/auth/forgejo/callback?code=#{secret("fg-code")}&state=#{state}")
 
-        assert redirected_to(conn) == ~p"/connections"
+        assert redirected_to(conn) == ~p"/start"
 
         user = Repo.get_by!(Switchboard.Accounts.User, username: "logcheck")
 

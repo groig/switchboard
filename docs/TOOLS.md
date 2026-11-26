@@ -63,6 +63,7 @@ audit row. In read-only mode a workflow still runs but offers no writes.
 | [`pickup`](#workflow-pickup) | `task` | plane, forgejo, outline, argus, releases | `plane_set_state`, `watch_task` | 10/min |
 | [`triage`](#workflow-triage) | `issue` | argus, forgejo, releases | `error_resolve`, `error_ignore` | 10/min |
 | [`handoff`](#workflow-handoff) | `task`, `channel` (optional) | plane, forgejo, releases | `send_message`, `plane_comment`, `plane_set_state` | 10/min |
+| [`help`](#workflow-help) | none |  | nothing | 10/min |
 
 <a id="workflow-standup"></a>
 ### standup
@@ -189,6 +190,25 @@ May propose (each after the user's OK): `send_message`, `plane_comment`, `plane_
 
 - Claude Code: `/mcp__switchboard__handoff DEMO-12 #demo-qa`
 - Any client: `workflow` with `{"args":{"channel":"#demo-qa","task":"DEMO-12"},"name":"handoff"}`, or just say "Hand DEMO-12 over to QA in #demo-qa"
+
+<a id="workflow-help"></a>
+### help
+
+**What can Switchboard do for me?** What can Switchboard do for me? Shows who you are, which accounts are linked or missing (with the link to fix them), the team commands and how to run them here, and three things to try next.
+
+Arguments:
+
+None.
+
+Prefetches:
+
+- nothing upstream: your profile, your linked accounts and the tools and workflows you already used (Switchboard's own records)
+- one of your open Plane items for the suggestions, only if it is already cached
+
+May propose (each after the user's OK): nothing.
+
+- Claude Code: `/mcp__switchboard__help`
+- Any client: `workflow` with `{"args":{},"name":"help"}`, or just say "What can Switchboard do for me?"
 
 
 ## cancel_watch
@@ -1006,13 +1026,13 @@ Example call: `{}`
 | Outline | connected |
 | Rocket.Chat | not connected |
 
-Connect the missing ones at https://switchboard.example.com/connections
+Connect the missing ones at https://switchboard.example.com/start (or run the `help` workflow)
 ````
 
 
 ## workflow
 
-**Team workflow.** Runs a team workflow: Switchboard fetches the facts with the user's own credentials and returns step-by-step instructions for you to follow. Use it when the user asks for one of these (in any words, e.g. "do my standup"), then follow the returned steps: standup [channel]: Draft my standup (yesterday, today, blockers) from Plane, Forgejo and my local commits; optionally post it to a channel after I confirm.; next: What should I work on now? Ranks at most 5 things (reviews and failures that block others first, then due dates and priority), each with one line saying why.; inbox: Everything waiting for me in one place: DMs, mentions and threads, review requests, Plane items that changed and watches that fired, oldest first, with draft replies to approve.; pickup <task>: Start working on a task: what's asked and what's unclear, where the change probably goes in the local code, a branch name, and an offer to move it to In Progress and watch it.; triage <issue>: Why is this Argus error happening and what do we do? Reads the error, the release where it appeared and the commits that touched its stack frames, then explains and suggests a fix.; handoff <task> [channel]: Hand a task over to QA: drafts what changed, how to test it, the risks and where it's deployed; offers to post it, comment on the task and move it to QA, each after I confirm.. The workflow itself changes nothing; any write it suggests is proposed to the user and needs their OK first.
+**Team workflow.** Runs a team workflow: Switchboard fetches the facts with the user's own credentials and returns step-by-step instructions for you to follow. Use it when the user asks for one of these (in any words, e.g. "do my standup"), then follow the returned steps: standup [channel]: Draft my standup (yesterday, today, blockers) from Plane, Forgejo and my local commits; optionally post it to a channel after I confirm.; next: What should I work on now? Ranks at most 5 things (reviews and failures that block others first, then due dates and priority), each with one line saying why.; inbox: Everything waiting for me in one place: DMs, mentions and threads, review requests, Plane items that changed and watches that fired, oldest first, with draft replies to approve.; pickup <task>: Start working on a task: what's asked and what's unclear, where the change probably goes in the local code, a branch name, and an offer to move it to In Progress and watch it.; triage <issue>: Why is this Argus error happening and what do we do? Reads the error, the release where it appeared and the commits that touched its stack frames, then explains and suggests a fix.; handoff <task> [channel]: Hand a task over to QA: drafts what changed, how to test it, the risks and where it's deployed; offers to post it, comment on the task and move it to QA, each after I confirm.; help: What can Switchboard do for me? Shows who you are, which accounts are linked or missing (with the link to fix them), the team commands and how to run them here, and three things to try next.. The workflow itself changes nothing; any write it suggests is proposed to the user and needs their OK first.
 
 - Connections: plane, forgejo, argus, outline, rocketchat
 - Annotations: `readOnlyHint: true`, `openWorldHint: true`
@@ -1021,7 +1041,7 @@ Arguments:
 
 | Name | Type | Required | Description |
 |---|---|---|---|
-| `name` | `standup` \| `next` \| `inbox` \| `pickup` \| `triage` \| `handoff` | yes | The workflow. |
+| `name` | `standup` \| `next` \| `inbox` \| `pickup` \| `triage` \| `handoff` \| `help` | yes | The workflow. |
 | `args` | object | no | The workflow's arguments as text, e.g. {"task": "PROJ-123"} (channel, task, issue). |
 
 Example call: `{"args":{"task":"DEMO-12"},"name":"pickup"}`

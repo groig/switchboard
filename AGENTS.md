@@ -85,6 +85,12 @@ guidance below.
   (only the ones available now; one confirmation each). Sections that reuse a tool go through
   `Workflows.Facts.tool/3` so the tool's kill switch applies. Keep names short (Claude Code shows
   `/mcp__switchboard__<name>`); list new ones in `docs/TOOLS.md` (generated) and the README.
+- **Onboarding** (`Switchboard.Onboarding`, `/start`, the `help` workflow, `/admin/onboarding`)
+  derives every state from existing records (audit rows, connections); don't add tracking
+  tables. A new tool or workflow worth trying gets a prompt in `Onboarding.prompts/0` (with the
+  audit actions that tick it off). Missing-connection messages link the exact row with
+  `Upstreams.connection_url/1`. Key-creation links (`key_url/0`) are checked against the upstream
+  versions in `docs/ARCHITECTURE.md`; recheck them on upgrades.
 - **Audit:** web actions call `Switchboard.Audit.log_web/4` inside the context function that does
   them, and get a label in `SwitchboardWeb.AuditLabels`. Tool calls are audited by `Tools.run/3`.
   Never update or delete `audit_events` (a trigger refuses); retention is `Audit.prune/1`.

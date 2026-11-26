@@ -72,6 +72,7 @@ defmodule SwitchboardWeb.Router do
         SwitchboardWeb.Locale,
         SwitchboardWeb.Shell
       ] do
+      live "/start", StartLive, :index
       live "/connections", ConnectionsLive, :index
       live "/clients", ClientsLive, :index
       live "/activity", ActivityLive, :index
@@ -96,6 +97,7 @@ defmodule SwitchboardWeb.Router do
       live "/audit", AuditLive, :index
       live "/people", PeopleLive, :index
       live "/health", HealthLive, :index
+      live "/onboarding", OnboardingLive, :index
     end
   end
 

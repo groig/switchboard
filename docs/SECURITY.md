@@ -146,6 +146,20 @@ is meant to follow. The risk is that upstream text passes for part of those inst
 - Residual risk: as for `chat_*`, a client that auto-approves write tools, or a user who approves
   without reading, can still be steered. `next` carries only a DM count, never message text.
 
+## Onboarding (milestone 7)
+
+- **The Get started page shows only identifiers from upstreams**, read with the person's own keys
+  (so never something they can't see there): one of their open Plane items and an Argus issue id.
+  No titles, descriptions or messages. The samples are cached per person, never shared.
+- **No new tracking.** Progress comes from the audit log and connections. The per-user PubSub
+  message carries kind, action and outcome only (no arguments), and only the person's own
+  LiveViews subscribe to their topic.
+- **`help` makes no upstream call** and contains no secrets: statuses, links and tool names. It is
+  audited like any workflow. It tells the agent never to ask for a key in the chat; keys are
+  linked in the browser.
+- **The admin Onboarding view** is under `/admin` (admin and `ADMIN_NETWORKS` only) and shows
+  counts and timestamps, never arguments or results.
+
 ### Private messages
 
 - Reads use the person's own token and only reach rooms they are a member of (subscription check,

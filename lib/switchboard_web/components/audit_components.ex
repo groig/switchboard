@@ -11,13 +11,18 @@ defmodule SwitchboardWeb.AuditComponents do
   attr :events, :any, required: true, doc: "a stream of `Switchboard.Audit.Event`"
   attr :scope, :any, required: true
   attr :show_user, :boolean, default: false
+  slot :empty, doc: "replaces the default empty state"
 
   def audit_list(assigns) do
     ~H"""
     <div class="overflow-hidden rounded-lg border border-border bg-surface">
       <ul id={@id} phx-update="stream" class="divide-y divide-border">
         <li id={"#{@id}-empty"} class="hidden only:block">
-          <.empty_state icon="hero-queue-list" title={gettext("Nothing here yet")} />
+          <%= if @empty != [] do %>
+            {render_slot(@empty)}
+          <% else %>
+            <.empty_state icon="hero-queue-list" title={gettext("Nothing here yet")} />
+          <% end %>
         </li>
         <li
           :for={{dom_id, event} <- @events}

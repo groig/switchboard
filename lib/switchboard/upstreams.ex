@@ -240,11 +240,20 @@ defmodule Switchboard.Upstreams do
   def label(:releases), do: "Releases"
 
   @doc """
+  The person's row for a system on the Connections page (an anchor), or the page itself for a
+  system without a personal key (the releases feed).
+  """
+  def connection_url(system) when system in [:plane, :argus, :outline, :rocketchat, :forgejo],
+    do: Switchboard.OAuth.issuer() <> "/connections#connection-#{system}"
+
+  def connection_url(_system), do: Switchboard.OAuth.issuer() <> "/connections"
+
+  @doc """
   One line explaining why a system's part of a result is missing, for the agent to relay.
   """
   def problem(system, reason) do
     name = label(system)
-    connect = Switchboard.OAuth.issuer() <> "/connections"
+    connect = connection_url(system)
 
     case reason do
       :not_connected ->

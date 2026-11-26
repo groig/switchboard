@@ -89,6 +89,11 @@ defmodule SwitchboardWeb.WatchesLive do
             {gettext(
               "Try \"DM me when CI on my PR finishes\" or \"tell me when DEMO-12 ships\" in your agent."
             )}
+            <:actions>
+              <.button id="watches-start" size="sm" navigate={~p"/start"}>
+                {gettext("More things to try")}
+              </.button>
+            </:actions>
           </.empty_state>
         </:empty>
       </.table>

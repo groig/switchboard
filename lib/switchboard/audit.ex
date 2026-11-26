@@ -40,22 +40,42 @@ defmodule Switchboard.Audit do
     outcome = Keyword.get(opts, :outcome, "ok")
     true = outcome in @outcomes
 
-    Repo.insert!(%Event{
-      at: DateTime.utc_now(),
-      user_id: user && user.id,
-      username: user && user.username,
-      kind: kind,
-      action: action,
-      client_id: scope.client_id,
-      client_name: scope.client_name,
-      args: redact(args, Keyword.get(opts, :sensitive, [])),
-      outcome: outcome,
-      error: opts[:error] && String.slice(to_string(opts[:error]), 0, 500),
-      duration_ms: opts[:duration_ms],
-      result_bytes: opts[:result_bytes],
-      upstreams: opts[:upstreams] || [],
-      ip: scope.ip
-    })
+    event =
+      Repo.insert!(%Event{
+        at: DateTime.utc_now(),
+        user_id: user && user.id,
+        username: user && user.username,
+        kind: kind,
+        action: action,
+        client_id: scope.client_id,
+        client_name: scope.client_name,
+        args: redact(args, Keyword.get(opts, :sensitive, [])),
+        outcome: outcome,
+        error: opts[:error] && String.slice(to_string(opts[:error]), 0, 500),
+        duration_ms: opts[:duration_ms],
+        result_bytes: opts[:result_bytes],
+        upstreams: opts[:upstreams] || [],
+        ip: scope.ip
+      })
+
+    if user, do: broadcast(user.id, event)
+    event
+  end
+
+  @doc """
+  Subscribes the caller to the user's new audit rows, delivered as
+  `{:audit_event, %{kind:, action:, outcome:}}` (the Get started checklist ticks off live).
+  """
+  def subscribe_user(user_id), do: Phoenix.PubSub.subscribe(Switchboard.PubSub, topic(user_id))
+
+  defp topic(user_id), do: "audit:user:" <> user_id
+
+  defp broadcast(user_id, %Event{} = e) do
+    Phoenix.PubSub.broadcast(
+      Switchboard.PubSub,
+      topic(user_id),
+      {:audit_event, %{kind: e.kind, action: e.action, outcome: e.outcome}}
+    )
   end
 
   @doc """

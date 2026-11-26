@@ -239,7 +239,7 @@ defmodule SwitchboardWeb.MCP.ProtocolTest do
       %{"result" => %{"prompts" => prompts}} = stateless(auth, 1, "prompts/list", %{})
 
       assert Enum.map(prompts, & &1["name"]) |> Enum.sort() ==
-               ~w(handoff inbox next pickup standup triage)
+               ~w(handoff help inbox next pickup standup triage)
 
       pickup = Enum.find(prompts, &(&1["name"] == "pickup"))
       assert [%{"name" => "task", "required" => true}] = pickup["arguments"]

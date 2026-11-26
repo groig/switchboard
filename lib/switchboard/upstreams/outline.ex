@@ -9,8 +9,9 @@ defmodule Switchboard.Upstreams.Outline do
   def system, do: "outline"
   @impl true
   def label, do: "Outline"
+  # Outline 1.7+ ("API & Access"); 0.84 to 1.6 called it /settings/api-and-apps.
   @impl true
-  def key_url, do: Upstreams.base_url(:outline) <> "/settings/api-and-apps"
+  def key_url, do: Upstreams.base_url(:outline) <> "/settings/api-and-access"
 
   @impl true
   def permissions,

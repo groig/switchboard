@@ -15,6 +15,9 @@ defmodule Switchboard.MCP.Instructions do
     "what should I do next?", "let's pick up PROJ-123"), run it: as the slash command if they \
     typed it, otherwise with the `workflow` tool (name and args). Then follow the steps it \
     returns. Workflows change nothing; the writes they suggest still need the user's OK.
+    - Suggest the `help` workflow when a tool fails because a system isn't connected, when the \
+    user seems new, or when they ask what Switchboard can do. It shows what is linked or missing \
+    (with the links to fix it), the commands, and what to try next.
     - Task ids look like PROJ-123; repositories are owner/name.
     - Code stays in the developer's local checkout: Switchboard doesn't serve files.
     - Write tools change real systems. Before calling one, show the user exactly what will be \

@@ -13,8 +13,9 @@ defmodule Switchboard.Upstreams.Argus do
   def system, do: "argus"
   @impl true
   def label, do: "Argus"
+  # The API tokens section of the account settings page.
   @impl true
-  def key_url, do: Upstreams.base_url(:argus) <> "/settings"
+  def key_url, do: Upstreams.base_url(:argus) <> "/settings#api-tokens"
 
   @impl true
   def permissions,

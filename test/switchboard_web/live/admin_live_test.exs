@@ -14,9 +14,25 @@ defmodule SwitchboardWeb.AdminLiveTest do
   test "non-admins get a 404 and never mount admin pages", %{conn: _conn} do
     conn = log_in_user(build_conn(), user_fixture())
 
-    for path <- ~w(/admin /admin/audit /admin/people /admin/health) do
+    for path <- ~w(/admin /admin/audit /admin/people /admin/health /admin/onboarding) do
       assert conn |> get(path) |> response(404)
     end
+  end
+
+  test "onboarding: each person's steps, read-only", %{conn: conn} do
+    pat = user_fixture()
+    ana = user_fixture()
+
+    Switchboard.Audit.log_tool(Scope.for_user(ana, client_name: "Codex"), "whoami", %{},
+      outcome: "ok"
+    )
+
+    {:ok, view, _html} = live(conn, ~p"/admin/onboarding")
+    assert has_element?(view, "#onboarding-#{pat.id}")
+    refute has_element?(view, "#onboarding-#{pat.id}", "Codex")
+    assert has_element?(view, "#onboarding-#{ana.id}", "Codex")
+    assert has_element?(view, "#onboarding-#{ana.id}", "1/5")
+    refute has_element?(view, "#onboarding button")
   end
 
   test "controls: read-only mode, maintenance message and tool switches", %{conn: conn} do

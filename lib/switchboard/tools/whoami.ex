@@ -48,7 +48,7 @@ defmodule Switchboard.Tools.Whoami do
       | Outline | connected |
       | Rocket.Chat | not connected |
 
-      Connect the missing ones at https://switchboard.example.com/connections
+      Connect the missing ones at https://switchboard.example.com/start (or run the `help` workflow)
       """
     }
   end
@@ -84,7 +84,7 @@ defmodule Switchboard.Tools.Whoami do
      | System | Status |
      |---|---|
      #{rows}
-     #{if missing?, do: "\nConnect the missing ones at #{OAuth.issuer()}/connections\n", else: ""}\
+     #{if missing?, do: "\nConnect the missing ones at #{OAuth.issuer()}/start (or run the `help` workflow)\n", else: ""}\
      """}
   end
 

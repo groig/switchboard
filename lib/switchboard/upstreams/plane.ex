@@ -11,10 +11,8 @@ defmodule Switchboard.Upstreams.Plane do
   def label, do: "Plane"
 
   @impl true
-  def key_url do
-    workspace = Upstreams.config(:plane)[:workspace]
-    Upstreams.base_url(:plane) <> "/#{workspace}/settings/account/api-tokens"
-  end
+  # Plane 1.4 moved personal tokens to the profile settings (the old workspace path redirects).
+  def key_url, do: Upstreams.base_url(:plane) <> "/settings/profile/api-tokens"
 
   @impl true
   def permissions,

@@ -101,7 +101,7 @@ defmodule Switchboard.Tools.NotifyMe do
   defp unknown,
     do:
       "Switchboard can't tell which Rocket.Chat user is you. Link Rocket.Chat at " <>
-        Switchboard.OAuth.issuer() <> "/connections and try again."
+        Switchboard.Upstreams.connection_url(:rocketchat) <> " and try again."
 
   defp same_name?(a, b) when is_binary(a) and is_binary(b),
     do: String.downcase(String.trim(a)) == String.downcase(String.trim(b))

@@ -26,7 +26,15 @@ defmodule SwitchboardWeb.UserAuth do
     |> put_session(:user_id, user.id)
     |> put_session(:session_version, user.session_version)
     |> put_session(:live_socket_id, live_socket_id(user))
-    |> redirect(to: return_to || ~p"/connections")
+    |> redirect(to: return_to || signed_in_path(user))
+  end
+
+  @doc """
+  Where a signed-in person lands: Get started (`/start`) until an agent of theirs has made a
+  successful call, Connections after that.
+  """
+  def signed_in_path(%User{} = user) do
+    if Switchboard.Onboarding.activated?(user), do: ~p"/connections", else: ~p"/start"
   end
 
   def log_out(conn) do

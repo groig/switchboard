@@ -80,7 +80,9 @@ defmodule Switchboard.ReadToolsTest do
     test "a person without a Plane key gets one line with the link" do
       scope = Scope.for_user(user_fixture())
       assert {:error, msg} = Tools.run(scope, "plane_my_items", %{})
-      assert msg =~ "Plane is not connected. Link it at http://localhost:4002/connections"
+
+      assert msg =~
+               "Plane is not connected. Link it at http://localhost:4002/connections#connection-plane"
     end
   end
 

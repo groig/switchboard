@@ -6,6 +6,7 @@ defmodule Switchboard.Workflows.Pickup do
   the item to In Progress and to watch it.
   """
   @behaviour Switchboard.Workflow
+  use Gettext, backend: SwitchboardWeb.Gettext
 
   alias Switchboard.{Argus, Plane}
   alias Switchboard.Tools.{DocsSearch, PlaneGetItem, TaskStatus}
@@ -20,6 +21,8 @@ defmodule Switchboard.Workflows.Pickup do
   def name, do: "pickup"
   @impl true
   def title, do: "Start working on a task"
+  @impl true
+  def purpose, do: gettext_noop("Start a task: what's asked, where the code goes, a branch name")
   @impl true
   def description,
     do:
@@ -45,7 +48,7 @@ defmodule Switchboard.Workflows.Pickup do
   def writes, do: ["plane_set_state", "watch_task"]
 
   @impl true
-  def example, do: %{args: %{"task" => "DEMO-12"}, says: "Let's pick up DEMO-12"}
+  def example, do: %{args: %{"task" => "DEMO-12"}, says: gettext_noop("Let's pick up DEMO-12")}
 
   @impl true
   def build(scope, args, ctx) do

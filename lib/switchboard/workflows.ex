@@ -28,7 +28,8 @@ defmodule Switchboard.Workflows do
     Switchboard.Workflows.Inbox,
     Switchboard.Workflows.Pickup,
     Switchboard.Workflows.Triage,
-    Switchboard.Workflows.Handoff
+    Switchboard.Workflows.Handoff,
+    Switchboard.Workflows.Help
   ]
 
   @max_arg 300

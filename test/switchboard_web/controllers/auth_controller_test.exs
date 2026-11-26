@@ -43,7 +43,8 @@ defmodule SwitchboardWeb.AuthControllerTest do
     {conn, state} = start_login(conn)
 
     conn = get(recycle_session(conn), ~p"/auth/forgejo/callback?code=abc&state=#{state}")
-    assert redirected_to(conn) == ~p"/connections"
+    # A new person lands on Get started.
+    assert redirected_to(conn) == ~p"/start"
 
     user = Switchboard.Repo.get_by!(Accounts.User, username: "ana")
     assert {:ok, "fg-access"} = Connections.forgejo_token(user)

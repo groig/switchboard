@@ -5,6 +5,7 @@ defmodule Switchboard.Workflows.Next do
   waiting; the agent ranks at most five, unblocking others first.
   """
   @behaviour Switchboard.Workflow
+  use Gettext, backend: SwitchboardWeb.Gettext
 
   alias Switchboard.Workflows.Facts
 
@@ -14,6 +15,8 @@ defmodule Switchboard.Workflows.Next do
   def name, do: "next"
   @impl true
   def title, do: "What should I work on now?"
+  @impl true
+  def purpose, do: gettext_noop("What to do now: at most 5 things, each with a reason")
   @impl true
   def description,
     do:
@@ -38,7 +41,7 @@ defmodule Switchboard.Workflows.Next do
   def writes, do: []
 
   @impl true
-  def example, do: %{args: %{}, says: "What should I work on next?"}
+  def example, do: %{args: %{}, says: gettext_noop("What should I work on next?")}
 
   @impl true
   def build(scope, _args, ctx) do

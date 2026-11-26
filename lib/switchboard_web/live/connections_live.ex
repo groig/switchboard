@@ -38,6 +38,22 @@ defmodule SwitchboardWeb.ConnectionsLive do
       />
 
       <div
+        :if={Enum.all?(Map.keys(@connections), &(&1 == "forgejo"))}
+        id="connections-start"
+        class="mb-4 flex flex-wrap items-center gap-3 rounded-lg border border-border bg-surface px-4 py-3 text-sm text-fg shadow-xs"
+      >
+        <.icon name="hero-rocket-launch" class="size-4.5 shrink-0 text-fg-subtle" />
+        <p class="min-w-0 flex-1">
+          {gettext(
+            "Nothing linked yet. Get started shows what each system unlocks and where to create its key."
+          )}
+        </p>
+        <.button id="connections-start-link" size="sm" navigate={~p"/start"}>
+          {gettext("Get started")}
+        </.button>
+      </div>
+
+      <div
         id="migrate-keys"
         class="mb-6 flex gap-3 rounded-lg border border-border bg-accent-soft/60 px-4 py-3 text-sm text-fg"
       >
@@ -111,7 +127,10 @@ defmodule SwitchboardWeb.ConnectionsLive do
     ~H"""
     <section
       id={"connection-#{@system}"}
-      class="flex flex-col gap-3 rounded-xl border border-border bg-surface p-4 shadow-xs sm:flex-row sm:items-center"
+      class={[
+        "flex scroll-mt-20 flex-col gap-3 rounded-xl border border-border bg-surface p-4 shadow-xs sm:flex-row sm:items-center",
+        "transition-shadow duration-(--duration-base) target:border-accent target:ring-2 target:ring-accent/25"
+      ]}
     >
       <div class="flex min-w-0 flex-1 items-start gap-3">
         <div class="flex size-9 shrink-0 items-center justify-center rounded-lg bg-inset text-fg-muted">
@@ -231,11 +250,12 @@ defmodule SwitchboardWeb.ConnectionsLive do
     end
   end
 
-  defp system_icon("forgejo"), do: "hero-code-bracket-square"
-  defp system_icon("plane"), do: "hero-clipboard-document-check"
-  defp system_icon("argus"), do: "hero-bug-ant"
-  defp system_icon("outline"), do: "hero-book-open"
-  defp system_icon("rocketchat"), do: "hero-chat-bubble-left-right"
+  @doc false
+  def system_icon("forgejo"), do: "hero-code-bracket-square"
+  def system_icon("plane"), do: "hero-clipboard-document-check"
+  def system_icon("argus"), do: "hero-bug-ant"
+  def system_icon("outline"), do: "hero-book-open"
+  def system_icon("rocketchat"), do: "hero-chat-bubble-left-right"
 
   @impl true
   def handle_event("start_link", %{"system" => system}, socket) do

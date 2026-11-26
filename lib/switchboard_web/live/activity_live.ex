@@ -80,7 +80,20 @@ defmodule SwitchboardWeb.ActivityLive do
         />
       </.form>
 
-      <.audit_list id="activity" events={@streams.events} scope={@current_scope} />
+      <.audit_list id="activity" events={@streams.events} scope={@current_scope}>
+        <:empty>
+          <.empty_state icon="hero-queue-list" title={gettext("Nothing here yet")}>
+            {gettext(
+              "Once your agent calls Switchboard, every call shows up here. Get started shows how to connect it and what to try first."
+            )}
+            <:actions>
+              <.button id="activity-start" size="sm" variant="primary" navigate={~p"/start"}>
+                {gettext("Get started")}
+              </.button>
+            </:actions>
+          </.empty_state>
+        </:empty>
+      </.audit_list>
 
       <div :if={@more?} class="mt-4 flex justify-center">
         <.button id="load-more" phx-click="more">{gettext("Load more")}</.button>

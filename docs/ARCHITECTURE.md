@@ -26,6 +26,7 @@ agent ──Streamable HTTP + bearer──▶ Caddy ──▶ Switchboard (Phoen
 | Safety | `Switchboard.Audit`, `Switchboard.Controls`, `Switchboard.RateLimit` | Append-only audit, live kill switches and read-only mode, ETS token buckets. |
 | Watches | `Switchboard.Watches`, `Switchboard.Watches.*` (Oban workers) | "DM me when this finishes" (below). |
 | Workflows | `Switchboard.Workflow`, `Switchboard.Workflows`, `Switchboard.Workflows.*`, `Switchboard.Tools.Workflow` | Team workflows as MCP prompts (slash commands) and as the `workflow` tool (below). |
+| Onboarding | `Switchboard.Onboarding`, `SwitchboardWeb.StartLive`, `SwitchboardWeb.Admin.OnboardingLive`, `Switchboard.Workflows.Help` | Get started page, the `help` workflow and the admin Onboarding view, all from existing records (below). |
 
 ### `Tools.run/3`
 
@@ -120,9 +121,9 @@ Each implements `Switchboard.Upstream` (label, key link, minimum permissions, fo
 | System | Credential | Identity check | Notes |
 |---|---|---|---|
 | Forgejo | OAuth token from sign-in | `GET /api/v1/user` | Forgejo 16 doesn't enforce OAuth scopes (see SECURITY). |
-| Plane 1.4 | Personal API key, `X-API-Key` | `GET /api/v1/users/me/` | Key page: `/<workspace>/settings/account/api-tokens`. |
-| Argus | `argus_...` token, bearer | `GET /api/v1/me` (Markdown: `Email:`, `Name:`, `Role:`, `Teams:` lines) | Matched by email like the others. |
-| Outline 1.x | API key, bearer | `POST /api/auth.info` | Key page: `/settings/api-and-apps`. |
+| Plane 1.4 | Personal API key, `X-API-Key` | `GET /api/v1/users/me/` | Key page: `/settings/profile/api-tokens` (1.4 moved it out of the workspace; the old path redirects). |
+| Argus | `argus_...` token, bearer | `GET /api/v1/me` (Markdown: `Email:`, `Name:`, `Role:`, `Teams:` lines) | Matched by email like the others. Key page: `/settings#api-tokens`. |
+| Outline 1.x | API key, bearer | `POST /api/auth.info` | Key page: `/settings/api-and-access` (1.7 and later; `/settings/api-and-apps` from 0.84 to 1.6). |
 | Rocket.Chat 8 | Personal access token + user id, `X-Auth-Token`/`X-User-Id` | `GET /api/v1/me` | Key page: `/account/tokens`. |
 
 `Upstreams.request/3`: `Req` with options from config (`req_options`, so tests use `Req.Test`),
@@ -384,6 +385,44 @@ Workflows.run/4: kill switch (workflow:<name>) · rate limit · argument checks 
   "items I changed" means items assigned to or created by the person that were updated in the
   window, and `inbox` says Plane mentions may be missing. `triage` finds the repository through the
   release that first listed the issue (its run URL); without one, the agent uses local history.
+
+## Onboarding (milestone 7)
+
+One guided path from signing in to "my agent just did something useful", in the app (`/start`)
+and in the agent (the `help` workflow). Nothing is tracked separately: `Switchboard.Onboarding`
+derives every state from records that already exist.
+
+| Step | Done when | Source |
+|---|---|---|
+| Connect your agent | any MCP call by the person (shows the client and when) | latest `audit_events` row with `kind = 'mcp'` |
+| Link your accounts | every system is linked and working | `connections` (`rejected` or someone else's key is an error; `untested` counts as linked) |
+| Try these | 3 of the 12 prompts tried | distinct `action` of their successful MCP rows; each prompt lists the tools or `workflow:<name>` that tick it |
+| Commands | any workflow run | the same rows (`workflow:<name>`) |
+
+- **Landing.** `UserAuth.signed_in_path/1` sends a person to `/start` after sign-in (and from
+  `/`) until they have one successful MCP call, to Connections after that; a stored `return_to`
+  (the OAuth consent screen) still wins. The page stays in the sidebar.
+- **Live.** `Audit` broadcasts each new row on `audit:user:<id>` (kind, action and outcome only);
+  the page reloads its state on each one, so a prompt ticks off while the agent runs it.
+- **Personalized prompts.** After the page connects, `Onboarding.samples/2` reads one of the
+  person's own open Plane items (the cached `my_items`) and the newest unresolved issue of their
+  busiest Argus project (two calls), with their own keys, in a `FanOut` with an 8 s budget, cached
+  5 minutes per person. Only identifiers are shown (`PROJ-12`, `project/7`). Anything missing,
+  failing or slow falls back to `<task>`/`<error>`; a skeleton shows while it loads.
+- **Greyed out.** A prompt whose systems aren't linked and working can't be copied and links to
+  that system's row on Connections (`/connections#connection-<system>`), the same anchor the tools'
+  "not connected" lines now use (`Upstreams.connection_url/1`).
+- **Commands.** The Commands section and the `help` command table are generated from the workflow
+  registry: each workflow's `purpose/0` (a Gettext msgid, so the page is translated), its
+  arguments and `example/0` (`says` is the plain-words version for Codex).
+- **`help`.** A seventh workflow (prompt and `workflow` tool, same policy). It makes no upstream
+  call: the person, their accounts with links to fix them, the commands written for the calling
+  client (`Onboarding.client_kind/1` from the CIMD client id or name), and three suggestions from
+  the checklist (linked and untried first), personalized only from the cache. The server
+  instructions tell the agent to suggest it on a missing connection or when the user seems new.
+- **Admin view.** `/admin/onboarding` (admin and tailnet only, read-only): per person the agent
+  (client, when, whether a call succeeded), accounts linked, prompts tried and last activity, in
+  four queries.
 
 ## Releases
 

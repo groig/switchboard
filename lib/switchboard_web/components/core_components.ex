@@ -83,7 +83,7 @@ defmodule SwitchboardWeb.CoreComponents do
   attr :for, :string, default: nil, doc: "render as a <label> for this input (e.g. a file input)"
 
   attr :rest, :global,
-    include: ~w(href navigate patch method download name value disabled form replace target)
+    include: ~w(href navigate patch method download name value disabled form replace target rel)
 
   slot :inner_block, required: true
 

@@ -6,6 +6,7 @@ defmodule Switchboard.Workflows.Inbox do
   are only sent once the person approves the exact text.
   """
   @behaviour Switchboard.Workflow
+  use Gettext, backend: SwitchboardWeb.Gettext
 
   alias Switchboard.Tools.ChatInbox
   alias Switchboard.Workflows.Facts
@@ -16,6 +17,10 @@ defmodule Switchboard.Workflows.Inbox do
   def name, do: "inbox"
   @impl true
   def title, do: "Everything waiting for me"
+  @impl true
+  def purpose,
+    do: gettext_noop("Everything waiting for you: messages, reviews, tasks and watches")
+
   @impl true
   def description,
     do:
@@ -39,7 +44,7 @@ defmodule Switchboard.Workflows.Inbox do
   def writes, do: ["send_message"]
 
   @impl true
-  def example, do: %{args: %{}, says: "What's waiting for me?"}
+  def example, do: %{args: %{}, says: gettext_noop("What's waiting for me?")}
 
   @impl true
   def build(scope, _args, ctx) do

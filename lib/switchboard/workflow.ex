@@ -39,6 +39,11 @@ defmodule Switchboard.Workflow do
 
   @callback name() :: String.t()
   @callback title() :: String.t()
+  @doc """
+  What the command is for, in a few words, for people (the Get started page and the README). An
+  English Gettext msgid: wrap it in `gettext_noop/1` so the page can translate it.
+  """
+  @callback purpose() :: String.t()
   @doc "One sentence: what the command is for (the prompt's description)."
   @callback description() :: String.t()
   @callback arguments() :: [argument()]
@@ -49,6 +54,6 @@ defmodule Switchboard.Workflow do
   @doc "Write tools the workflow may propose (the user confirms each one)."
   @callback writes() :: [String.t()]
   @callback build(Scope.t(), args :: map(), context()) :: {:ok, built()} | {:error, String.t()}
-  @doc "Sample arguments and invocation for the docs."
+  @doc "Sample arguments and how to ask for it in plain words (`says`, a Gettext msgid)."
   @callback example() :: %{args: map(), says: String.t()}
 end

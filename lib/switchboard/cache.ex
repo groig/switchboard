@@ -26,6 +26,16 @@ defmodule Switchboard.Cache do
     end
   end
 
+  @doc "The cached value for `key` without computing it: `{:ok, value}` or `:error`."
+  def peek(key) do
+    now = System.monotonic_time(:millisecond)
+
+    case :ets.lookup(@table, key) do
+      [{^key, value, expires}] when expires > now -> {:ok, value}
+      _ -> :error
+    end
+  end
+
   def clear, do: :ets.delete_all_objects(@table)
 
   @doc "Deletes entries whose key matches an ETS match pattern (`{:plane_get, kid, :_, :_}`)."

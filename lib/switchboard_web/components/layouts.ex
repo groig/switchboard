@@ -207,6 +207,7 @@ defmodule SwitchboardWeb.Layouts do
 
   defp nav_shortcuts(scope) do
     [
+      {~p"/start", "g s"},
       {~p"/connections", "g c"},
       {~p"/clients", "g t"},
       {~p"/activity", "g a"},
@@ -270,6 +271,14 @@ defmodule SwitchboardWeb.Layouts do
         class="flex flex-1 flex-col gap-0.5 overflow-y-auto px-2.5 py-1"
         aria-label={gettext("Main")}
       >
+        <.nav_item
+          navigate={~p"/start"}
+          icon="hero-rocket-launch"
+          active={@active == :start}
+          shortcut="G S"
+        >
+          {gettext("Get started")}
+        </.nav_item>
         <.nav_item
           navigate={~p"/connections"}
           icon="hero-link"
@@ -336,6 +345,13 @@ defmodule SwitchboardWeb.Layouts do
             active={@active == :admin_people}
           >
             {gettext("People")}
+          </.nav_item>
+          <.nav_item
+            navigate={~p"/admin/onboarding"}
+            icon="hero-academic-cap"
+            active={@active == :admin_onboarding}
+          >
+            {gettext("Onboarding")}
           </.nav_item>
           <.nav_item
             navigate={~p"/admin/health"}

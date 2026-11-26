@@ -6,6 +6,7 @@ defmodule Switchboard.Workflows.Handoff do
   and move it to the QA state, each with its own confirmation.
   """
   @behaviour Switchboard.Workflow
+  use Gettext, backend: SwitchboardWeb.Gettext
 
   alias Switchboard.Plane
   alias Switchboard.Tools.{PlaneGetItem, TaskStatus}
@@ -19,6 +20,8 @@ defmodule Switchboard.Workflows.Handoff do
   def name, do: "handoff"
   @impl true
   def title, do: "Hand a task over to QA"
+  @impl true
+  def purpose, do: gettext_noop("Hand a task over to QA with a test plan")
   @impl true
   def description,
     do:
@@ -53,7 +56,7 @@ defmodule Switchboard.Workflows.Handoff do
   def example,
     do: %{
       args: %{"task" => "DEMO-12", "channel" => "#demo-qa"},
-      says: "Hand DEMO-12 over to QA in #demo-qa"
+      says: gettext_noop("Hand DEMO-12 over to QA in #demo-qa")
     }
 
   @impl true

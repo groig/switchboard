@@ -7,6 +7,7 @@ defmodule Switchboard.Workflows.Triage do
   the likely commit and suggests a fix. It never resolves or ignores the error on its own.
   """
   @behaviour Switchboard.Workflow
+  use Gettext, backend: SwitchboardWeb.Gettext
 
   alias Switchboard.{Forgejo, Releases}
   alias Switchboard.Tools.{ErrorGet, MyWork}
@@ -21,6 +22,8 @@ defmodule Switchboard.Workflows.Triage do
   def name, do: "triage"
   @impl true
   def title, do: "Why is this error happening?"
+  @impl true
+  def purpose, do: gettext_noop("Why an Argus error happens and how to fix it")
   @impl true
   def description,
     do:
@@ -51,7 +54,8 @@ defmodule Switchboard.Workflows.Triage do
   def writes, do: ["error_resolve", "error_ignore"]
 
   @impl true
-  def example, do: %{args: %{"issue" => "demo-api/7"}, says: "Triage Argus demo-api/7"}
+  def example,
+    do: %{args: %{"issue" => "demo-api/7"}, says: gettext_noop("Triage Argus demo-api/7")}
 
   @doc "Parses `project/id`, `project#id`, `project id` or an issue URL."
   def parse(text) do

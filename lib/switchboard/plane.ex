@@ -94,6 +94,14 @@ defmodule Switchboard.Plane do
     end
   end
 
+  @doc "The `my_items/2` result if it is cached right now (`{:ok, items}`), without calling Plane."
+  def cached_my_items(cred, user_id) do
+    case Cache.peek({:plane_my_items, user_id, key_id(cred)}) do
+      {:ok, {items, _notes}} -> {:ok, items}
+      :error -> :error
+    end
+  end
+
   defp fetch_my_items(cred, user_id) do
     with {:ok, me} <- me(cred, user_id),
          {:ok, projects} <- projects(cred, user_id) do
