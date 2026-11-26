@@ -66,7 +66,7 @@ guidance below.
   Message text is private and untrusted: wrapped, never stored in audit rows (only the result
   size), and never a reason for a write. Rocket.Chat limits REST calls per route **per client IP**
   (10/min by default), so every person's calls share one bucket: personal calls spend the
-  per-route budget in `Switchboard.RocketChat` (`:route_budget`); keep new reads to a fixed,
+  per-route budget in `Switchboard.RocketChat` (`:route_budget`, `ROCKETCHAT_ROUTE_BUDGET`); keep new reads to a fixed,
   small number of calls and cache listings.
 - **Never log query parameters:** the repo runs with `log: false`; `Switchboard.Repo.QueryLog`
   logs SQL without values. Don't turn Ecto's log back on. A new flow that handles a secret gets a

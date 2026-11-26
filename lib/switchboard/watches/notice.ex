@@ -117,9 +117,6 @@ defmodule Switchboard.Watches.Notice do
     what = Watch.label(watch)
 
     case reason do
-      "timed_out" ->
-        gettext("⌛ Your watch on %{what} expired before anything happened.", what: what)
-
       "connection_missing" ->
         gettext(
           "Your watch on %{what} stopped: the connection it needs is no longer linked.",

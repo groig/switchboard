@@ -522,7 +522,8 @@ defmodule Switchboard.WatchesTest do
   end
 
   describe "expiry, limits, pause and ownership" do
-    test "expired watches end with one final DM", %{scope: scope, user: user, ci: ci} do
+    test "a timed-out watch expires without a DM but still shows as expired",
+         %{scope: scope, user: user, ci: ci} do
       ci_stub(ci)
       add_run(ci, "running")
       {:ok, _} = Tools.run(scope, "watch_ci", %{"repo" => "demo/app", "pr" => 42, "hours" => 1})
@@ -530,12 +531,26 @@ defmodule Switchboard.WatchesTest do
       assert Watches.expire_due(DateTime.add(DateTime.utc_now(), 2 * 3600)) == 1
       watch = the_watch(user)
       assert watch.status == "expired" and watch.end_reason == "timed_out"
+      assert watch.notified_at == nil
       assert Watches.expire_due(DateTime.add(DateTime.utc_now(), 3 * 3600)) == 0
+      refute_enqueued(worker: Deliver)
 
-      receive_all([])
-      deliver_all()
-      assert [{_, _, text}] = dms()
-      assert text =~ "caducó"
+      assert {:ok, md} = Tools.run(scope, "list_watches", %{})
+      assert md =~ "demo/app#42" and md =~ "| expired |"
+
+      # The check job also notices the deadline, without a DM.
+      {:ok, _} = Tools.run(scope, "watch_ci", %{"repo" => "demo/app", "branch" => "main"})
+
+      branch =
+        Repo.one!(from w in Watch, where: w.status == "active", preload: :user)
+
+      Repo.update_all(from(w in Watch, where: w.id == ^branch.id),
+        set: [expires_at: DateTime.add(DateTime.utc_now(:second), -1)]
+      )
+
+      assert :ok = poll(Repo.preload(Repo.get!(Watch, branch.id), :user))
+      assert Repo.get!(Watch, branch.id).end_reason == "timed_out"
+      refute_enqueued(worker: Deliver)
     end
 
     test "per-person limit and duplicates", %{scope: scope, user: user, ci: ci} do

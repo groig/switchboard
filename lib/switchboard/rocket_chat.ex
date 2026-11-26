@@ -14,8 +14,8 @@ defmodule Switchboard.RocketChat do
   **Rate limits.** Rocket.Chat 8.x limits REST calls to 10 per minute per route *and client IP*
   (`API_Enable_Rate_Limiter_Limit_Calls_Default`), so every person's calls through Switchboard
   share one bucket per route. The bot role bypasses it (`api-bypass-rate-limit`). Calls with a
-  person's token therefore spend a per-route budget kept here (`:route_budget`, default 8 a
-  minute, per node); past it they fail fast with `:rate_limited` instead of reaching Rocket.Chat.
+  person's token therefore spend a per-route budget kept here (`:route_budget`, from
+  `ROCKETCHAT_ROUTE_BUDGET`; default 8 a minute, per node); past it they fail fast with `:rate_limited` instead of reaching Rocket.Chat.
   """
 
   alias Switchboard.{Cache, RateLimit, Upstreams}

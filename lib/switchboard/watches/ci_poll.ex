@@ -47,7 +47,7 @@ defmodule Switchboard.Watches.CiPoll do
         reschedule(watch, @max_delay)
 
       DateTime.compare(DateTime.utc_now(), watch.expires_at) != :lt ->
-        Watches.stop(watch, "timed_out")
+        Watches.expire(watch)
         :ok
 
       true ->

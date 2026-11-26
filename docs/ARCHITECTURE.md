@@ -228,6 +228,9 @@ contains no live @-mentions (a zero-width space follows every `@`).
   `mentions`: up to 3 channels with `userMentions > 0`, `chat.getMentionedMessages` (3 each).
   `threads`: up to 3 ids from `tunread`, the latest reply of each (`chat.getThreadMessages`).
   `lastMessage` ignores thread replies, so threads only show up there.
+  **Known limitation:** a regular user only sees a user's `type`, not their roles, so a bot
+  account created with type `user` (e.g. an admin-made user given the `bot` role) is treated as a
+  person and its DMs can appear in the inbox. There is deliberately no ignore list.
 - **Read:** `@username` (`im.messages`, which never creates a DM), `#channel` (`rooms.info`),
   a permalink of the configured host, or a room id; every room is checked with
   `subscriptions.getOne` (membership, as `send_message` does) before `im/channels/groups.history`
@@ -239,9 +242,11 @@ contains no live @-mentions (a zero-width space follows every `@`).
 - **Rate limits:** Rocket.Chat 8.x limits each REST route to 10 calls a minute per *client IP*
   (`API_Enable_Rate_Limiter_Limit_Calls_Default`/`_Time_Default`), so all of Switchboard shares one
   bucket per route; the bot role bypasses it (`api-bypass-rate-limit`). Personal calls spend a
-  per-route budget in `Switchboard.RocketChat` (8 a minute per node, `:route_budget`) and fail
-  fast past it. An inbox costs 2 calls, plus at most 5 + 3 + 3. If people hit it often, an admin
-  can raise the Rocket.Chat default or grant Switchboard's traffic a higher limit.
+  per-route budget in `Switchboard.RocketChat` and fail fast past it. The budget is
+  `ROCKETCHAT_ROUTE_BUDGET` (calls a minute per route, all people together, per node; default 8,
+  under Rocket.Chat's default 10). Keep it a little below the server's
+  `API_Enable_Rate_Limiter_Limit_Calls_Default`: when the server allows 60 a minute, set about
+  50. An inbox costs 2 calls, plus at most 5 + 3 + 3.
 
 ## Watches (milestone 5)
 
@@ -263,8 +268,9 @@ missing CI job), Oban cron runs on one node, and the database is the only place 
 notice. Cost: one job per CI watch and a one-minute sweep, negligible at a few hundred watches.
 
 - **Lifetime:** 24 h by default, up to 7 days (`hours`); a release waiting for health stays up to
-  26 h after it finished. Each person has at most 20 active watches (`:max_active`); the same
-  thing can't be watched twice.
+  26 h after it finished. A watch that runs out of time expires quietly (`timed_out`, no DM); it
+  still shows as expired in `list_watches` and on `/watches`. Each person has at most 20 active
+  watches (`:max_active`); the same thing can't be watched twice.
 - **Creation checks** with the person's own credentials: the Forgejo repo and PR/branch/run are
   visible (a CI run that already finished is answered instead of watched), the Plane item exists,
   the release repo is in the feed; and Switchboard knows the person's Rocket.Chat user.
@@ -289,11 +295,12 @@ notice. Cost: one job per CI watch and a one-minute sweep, negligible at a few h
   a crash mid-post can lose one.
 - **Notices:** `RocketChat.deliver/2` as the bot user, to the owner only (the recipient rule of
   `notify_me`), in their `locale`, with mentions defused, the automatic-notice footer and a link to
-  `/watches`. At most one notice per watch (result, or the final "stopped/expired" one) plus the
+  `/watches`. At most one notice per watch (the result, or the final "stopped" one) plus the
   health follow-up, and at most 30 watch notices per person an hour (more wait).
-- **Watches that can't work any more** expire with one final notice: the connection is gone
-  (`connection_missing`), rejected (`connection_rejected`), the person lost access
-  (`access_lost`: 403/404 with their token), or time ran out (`timed_out`).
+- **Watches that can't work any more** expire with one final notice explaining why: the owner's
+  Forgejo or Plane connection is gone (`connection_missing`) or rejected (`connection_rejected`),
+  or they lost access to the repo or item (`access_lost`: 403/404 with their token). These are
+  the only reasons that send a final DM.
 - **Pause:** `watches_paused` in the global controls (admin, audited): no new watches, no checks,
   notices wait. Each tool also has its own kill switch.
 

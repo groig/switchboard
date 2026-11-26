@@ -66,6 +66,23 @@ if days = System.get_env("AUDIT_RETENTION_DAYS") do
   config :switchboard, Switchboard.Audit, retention_days: String.to_integer(days)
 end
 
+# Calls a minute per Rocket.Chat REST route that Switchboard makes with people's own tokens, all
+# of them together (Rocket.Chat rate-limits per route and client IP). Default 8, under
+# Rocket.Chat's default of 10; raise it when the server's limit is raised. Any environment.
+case System.get_env("ROCKETCHAT_ROUTE_BUDGET") do
+  value when value in [nil, ""] ->
+    :ok
+
+  value ->
+    case Integer.parse(String.trim(value)) do
+      {n, ""} when n > 0 ->
+        config :switchboard, Switchboard.Upstreams, rocketchat: [route_budget: n]
+
+      _ ->
+        raise "ROCKETCHAT_ROUTE_BUDGET must be a positive integer (calls a minute per route)"
+    end
+end
+
 # Upstreams from the environment. In production every one is required (below); in development
 # they override the placeholders in dev.exs. (Config deep-merges keyword lists.)
 if config_env() == :dev do

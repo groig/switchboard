@@ -84,6 +84,7 @@ Production boot reports missing required settings together.
 | `ADMIN_NETWORKS` | Restrict admin access to these CIDRs |
 | `HEALTH_NETWORKS` | Additional peer CIDRs allowed to query `/healthz`. The default permits the direct loopback check |
 | `FORGEJO_WEBHOOK_SECRET` | Secret of the Forgejo webhook at `/hooks/forgejo`. Without it the endpoint refuses requests and watches poll Forgejo (1 to 5 minutes later) |
+| `ROCKETCHAT_ROUTE_BUDGET` | Calls a minute per Rocket.Chat REST route that Switchboard makes with people's own tokens, all people together (default 8). Rocket.Chat limits each route per client IP, so keep it a little below the server's limit, e.g. 50 when Rocket.Chat allows 60 a minute |
 | `AUDIT_RETENTION_DAYS`, `POOL_SIZE` | Audit retention in days (180) and database pool size (10) |
 
 Compose requires `SWITCHBOARD_TAG` (published image tag), `POSTGRES_PASSWORD` (use a URL-safe password), `RELEASES_NETWORK` (existing Docker network name) and an explicit `TRUSTED_PROXIES` for your proxy. It constructs `DATABASE_URL` for the bundled database.

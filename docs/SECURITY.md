@@ -189,8 +189,8 @@ Scrubbing is best effort: the log is still the person's own data, read with thei
 - **Fail open on Forgejo outages** during refresh (see above). The exposure is bounded by the
   access-token lifetime and the next refresh.
 - **Rocket.Chat's limiter is per IP:** every person's calls through Switchboard share
-  Rocket.Chat's per-route budget (10/min by default). Switchboard spends at most 8 a minute per
-  route per node and fails fast past it, so one heavy user can delay others' chat reads by up to a
+  Rocket.Chat's per-route budget (10/min by default). Switchboard spends at most
+  `ROCKETCHAT_ROUTE_BUDGET` calls a minute per route per node (default 8) and fails fast past it, so one heavy user can delay others' chat reads by up to a
   minute.
 - **Webhook payloads aren't trusted for content:** only the repository name is read. A watch DM
   can be lost if the node dies mid-post (at most once, never twice).

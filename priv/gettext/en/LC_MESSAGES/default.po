@@ -1328,7 +1328,7 @@ msgstr ""
 msgid "Task"
 msgstr ""
 
-#: lib/switchboard_web/live/watches_live.ex:148
+#: lib/switchboard_web/live/watches_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "That watch already ended."
 msgstr ""
@@ -1353,7 +1353,7 @@ msgstr ""
 msgid "Waits for"
 msgstr ""
 
-#: lib/switchboard_web/live/watches_live.ex:147
+#: lib/switchboard_web/live/watches_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Watch cancelled."
 msgstr ""
@@ -1368,22 +1368,22 @@ msgstr ""
 msgid "Watching"
 msgstr ""
 
-#: lib/switchboard/watches/notice.ex:138
+#: lib/switchboard/watches/notice.ex:135
 #, elixir-autogen, elixir-format
 msgid "Your watch on %{what} stopped."
 msgstr ""
 
-#: lib/switchboard/watches/notice.ex:124
+#: lib/switchboard/watches/notice.ex:121
 #, elixir-autogen, elixir-format
 msgid "Your watch on %{what} stopped: the connection it needs is no longer linked."
 msgstr ""
 
-#: lib/switchboard/watches/notice.ex:135
+#: lib/switchboard/watches/notice.ex:132
 #, elixir-autogen, elixir-format
 msgid "Your watch on %{what} stopped: you no longer have access to it."
 msgstr ""
 
-#: lib/switchboard/watches/notice.ex:130
+#: lib/switchboard/watches/notice.ex:127
 #, elixir-autogen, elixir-format
 msgid "Your watch on %{what} stopped: your key was rejected. Link it again."
 msgstr ""
@@ -1396,11 +1396,6 @@ msgstr ""
 #: lib/switchboard/watches/notice.ex:100
 #, elixir-autogen, elixir-format
 msgid "unknown"
-msgstr ""
-
-#: lib/switchboard/watches/notice.ex:121
-#, elixir-autogen, elixir-format
-msgid "⌛ Your watch on %{what} expired before anything happened."
 msgstr ""
 
 #: lib/switchboard/watches/notice.ex:34

@@ -1328,7 +1328,7 @@ msgstr "Detenido: sin acceso"
 msgid "Task"
 msgstr "Tarea"
 
-#: lib/switchboard_web/live/watches_live.ex:148
+#: lib/switchboard_web/live/watches_live.ex:151
 #, elixir-autogen, elixir-format
 msgid "That watch already ended."
 msgstr "Ese aviso ya terminó."
@@ -1353,7 +1353,7 @@ msgstr "Esperando el estado"
 msgid "Waits for"
 msgstr "Espera"
 
-#: lib/switchboard_web/live/watches_live.ex:147
+#: lib/switchboard_web/live/watches_live.ex:148
 #, elixir-autogen, elixir-format
 msgid "Watch cancelled."
 msgstr "Aviso cancelado."
@@ -1368,22 +1368,22 @@ msgstr "Un administrador ha pausado los avisos: por ahora no hay comprobaciones 
 msgid "Watching"
 msgstr "Vigilando"
 
-#: lib/switchboard/watches/notice.ex:138
+#: lib/switchboard/watches/notice.ex:135
 #, elixir-autogen, elixir-format
 msgid "Your watch on %{what} stopped."
 msgstr "Tu aviso sobre %{what} se detuvo."
 
-#: lib/switchboard/watches/notice.ex:124
+#: lib/switchboard/watches/notice.ex:121
 #, elixir-autogen, elixir-format
 msgid "Your watch on %{what} stopped: the connection it needs is no longer linked."
 msgstr "Tu aviso sobre %{what} se detuvo: la conexión que necesita ya no está vinculada."
 
-#: lib/switchboard/watches/notice.ex:135
+#: lib/switchboard/watches/notice.ex:132
 #, elixir-autogen, elixir-format
 msgid "Your watch on %{what} stopped: you no longer have access to it."
 msgstr "Tu aviso sobre %{what} se detuvo: ya no tienes acceso."
 
-#: lib/switchboard/watches/notice.ex:130
+#: lib/switchboard/watches/notice.ex:127
 #, elixir-autogen, elixir-format
 msgid "Your watch on %{what} stopped: your key was rejected. Link it again."
 msgstr "Tu aviso sobre %{what} se detuvo: se rechazó tu clave. Vincúlala de nuevo."
@@ -1397,11 +1397,6 @@ msgstr "Tus avisos: %{url}"
 #, elixir-autogen, elixir-format
 msgid "unknown"
 msgstr "desconocido"
-
-#: lib/switchboard/watches/notice.ex:121
-#, elixir-autogen, elixir-format
-msgid "⌛ Your watch on %{what} expired before anything happened."
-msgstr "⌛ Tu aviso sobre %{what} caducó sin que pasara nada."
 
 #: lib/switchboard/watches/notice.ex:34
 #, elixir-autogen, elixir-format

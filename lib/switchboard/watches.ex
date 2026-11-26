@@ -264,10 +264,11 @@ defmodule Switchboard.Watches do
 
   @doc """
   The watch can't work any more (`reason`: `connection_missing`, `connection_rejected`,
-  `access_lost`, `not_found`) or ran out of time (`timed_out`): it expires with one final notice,
-  unless it already sent its notice (a release waiting for health just ends).
+  `access_lost`): it expires with one final notice explaining why, unless it already sent its
+  notice (a release waiting for health just ends).
   """
-  def stop(%Watch{} = watch, reason) when is_binary(reason) do
+  def stop(%Watch{} = watch, reason)
+      when reason in ~w(connection_missing connection_rejected access_lost) do
     now = DateTime.utc_now(:second)
     base = [status: "expired", end_reason: reason, ended_at: now, updated_at: now]
 
@@ -302,11 +303,27 @@ defmodule Switchboard.Watches do
     result
   end
 
-  @doc "Expires every active watch past its time (with the final notice). Returns how many."
+  @doc """
+  Ran out of time: the watch expires (`timed_out`) without a DM. It still shows as expired in
+  `list_watches` and on the watches page.
+  """
+  def expire(%Watch{} = watch) do
+    now = DateTime.utc_now(:second)
+
+    {n, _} =
+      from(w in Watch, where: w.id == ^watch.id and w.status == "active")
+      |> Repo.update_all(
+        set: [status: "expired", end_reason: "timed_out", ended_at: now, updated_at: now]
+      )
+
+    n
+  end
+
+  @doc "Expires every active watch past its time, without DMs. Returns how many."
   def expire_due(now \\ DateTime.utc_now()) do
     from(w in Watch, where: w.status == "active" and w.expires_at <= ^now)
     |> Repo.all()
-    |> Enum.map(&stop(&1, "timed_out"))
-    |> length()
+    |> Enum.map(&expire/1)
+    |> Enum.sum()
   end
 end
