@@ -5,13 +5,16 @@ defmodule Switchboard.UpstreamStubs do
 
       stub(%{"argus.test" => {:status, 500}, "plane.test" => {:delay, 1_000}})
 
-  Every Forgejo request is asserted to be a GET. Every write (non-GET, plus Outline's
+  Every Forgejo request is asserted to be a GET; a non-GET to GitHub (`*.github.test`) is reported
+  as `{:github_write, method, path}` (only linking and unlinking may send one), and every GitHub
+  request as `{:github, host, method, path, authorization_headers}`. Every write (non-GET, plus Outline's
   `documents.create` and Rocket.Chat's posting calls) is reported to the test process as
   `{:upstream_write, host, method, path, credential_headers, body}`.
   """
   import Plug.Conn
 
   @me "u-ana"
+  @github_hosts ["api.github.test", "github.test", "logs.github.test"]
 
   def stub(overrides \\ %{}) do
     test = self()
@@ -37,6 +40,17 @@ defmodule Switchboard.UpstreamStubs do
         if conn.method != "GET", do: send(test, {:forgejo_write, conn.method, conn.request_path})
       end
 
+      if conn.host in @github_hosts do
+        # The GitHub token has the repo scope (read and write); tools must only read with it.
+        if conn.method != "GET", do: send(test, {:github_write, conn.method, conn.request_path})
+
+        send(
+          test,
+          {:github, conn.host, conn.method, conn.request_path,
+           Plug.Conn.get_req_header(conn, "authorization")}
+        )
+      end
+
       case Map.get(overrides, conn.host) do
         {:status, status} -> conn |> put_status(status) |> Req.Test.json(%{"error" => "down"})
         {:delay, ms} -> Process.sleep(ms) && route(conn)
@@ -48,6 +62,25 @@ defmodule Switchboard.UpstreamStubs do
   end
 
   ## Linking keys for a user
+
+  @doc "Links GitHub for a user (the OAuth token, as `Connections.store_github/3` stores it)."
+  def link_github(user, attrs \\ %{}) do
+    Switchboard.Repo.insert!(
+      struct(
+        %Switchboard.Connections.Connection{
+          user_id: user.id,
+          system: "github",
+          secret: %{"access_token" => "gho_test-#{user.id}"},
+          status: "ok",
+          identity: %{"username" => "ana-gh"},
+          identity_matches: true
+        },
+        attrs
+      )
+    )
+
+    user
+  end
 
   def link_all(user) do
     for {system, secret} <- [
@@ -106,6 +139,7 @@ defmodule Switchboard.UpstreamStubs do
   defp route(%{host: "argus.test"} = conn), do: argus(conn, conn.request_path)
   defp route(%{host: "outline.test"} = conn), do: outline(conn, conn.request_path)
   defp route(%{host: "releases.test"} = conn), do: releases(conn)
+  defp route(%{host: host} = conn) when host in @github_hosts, do: github(conn)
 
   # Plane: workspace "acme", two projects (one the user is a member of).
   @ws "/api/v1/workspaces/acme"
@@ -547,6 +581,248 @@ defmodule Switchboard.UpstreamStubs do
     2026-11-26T14:20:13.2Z ⚙️ [runner]: exitcode '1': failure
     2026-11-26T14:20:13.3Z ⭐ Run Post Checkout
     2026-11-26T14:20:13.4Z 🏁  Job failed
+    """
+  end
+
+  ## GitHub: example-org/example-repo with PR 7 (a failing Actions run 4242); private-repo is
+  ## invisible (the org hasn't approved the app).
+
+  @gh_sha "9a8b7c6d5e4f3a2b1c0d9a8b7c6d5e4f3a2b1c0d"
+  @gh_repo "/repos/example-org/example-repo"
+
+  def gh_sha, do: @gh_sha
+
+  @doc "The GitHub routes, public so a test's override can fall back to them."
+  def github(
+        %{host: "github.test", method: "POST", request_path: "/login/oauth/access_token"} = conn
+      ) do
+    form =
+      if is_binary(conn.private.json_body),
+        do: URI.decode_query(conn.private.json_body),
+        else: %{}
+
+    send(conn.private.test_pid, {:github_token_exchange, form})
+
+    if form["code"] == "bad-code" do
+      Req.Test.json(conn, %{"error" => "bad_verification_code"})
+    else
+      Req.Test.json(conn, %{
+        "access_token" => "gho_new-token",
+        "scope" => "repo",
+        "token_type" => "bearer"
+      })
+    end
+  end
+
+  def github(%{host: "logs.github.test"} = conn) do
+    conn |> put_resp_content_type("text/plain") |> send_resp(200, github_log())
+  end
+
+  def github(%{host: "api.github.test"} = conn), do: gh(conn, conn.method, conn.request_path)
+
+  defp gh(conn, "GET", "/user"),
+    do: Req.Test.json(conn, %{"login" => "ana-gh", "name" => "Ana", "email" => nil})
+
+  defp gh(conn, "DELETE", "/applications/gh-client/grant"), do: send_resp(conn, 204, "")
+
+  defp gh(conn, "GET", @gh_repo),
+    do: Req.Test.json(conn, %{"full_name" => "example-org/example-repo", "private" => true})
+
+  defp gh(conn, "GET", "/search/issues") do
+    q = URI.decode_query(conn.query_string)["q"] || ""
+
+    pr = %{
+      "id" => 7007,
+      "number" => 7,
+      "title" => "DEMO-12 Export invoices from the GitHub app",
+      "body" => "Part of DEMO-12",
+      "state" => "open",
+      "html_url" => "https://github.example/example-org/example-repo/pull/7",
+      "repository_url" => "http://api.github.test/repos/example-org/example-repo",
+      "user" => %{"login" => "ana-gh"},
+      "updated_at" => "2026-11-26T09:00:00Z",
+      "pull_request" => %{"merged_at" => nil}
+    }
+
+    in_scope? =
+      String.contains?(q, "repo:example-org/example-repo") or
+        String.contains?(q, "user:example-org")
+
+    cond do
+      String.contains?(q, "repo:example-org/private-repo") ->
+        conn |> put_status(422) |> Req.Test.json(%{"message" => "Validation Failed"})
+
+      String.contains?(q, "review-requested:@me") or String.contains?(q, "reviewed-by:@me") ->
+        Req.Test.json(conn, %{"total_count" => 0, "items" => []})
+
+      in_scope? and (not (q =~ ~r/[A-Z]+-\d+/) or String.contains?(q, "DEMO-12")) ->
+        Req.Test.json(conn, %{"total_count" => 1, "items" => [pr]})
+
+      true ->
+        Req.Test.json(conn, %{"total_count" => 0, "items" => []})
+    end
+  end
+
+  defp gh(conn, "GET", @gh_repo <> "/pulls/7") do
+    Req.Test.json(conn, %{
+      "number" => 7,
+      "title" => "DEMO-12 Export invoices from the GitHub app",
+      "state" => "open",
+      "merged" => false,
+      "draft" => false,
+      "mergeable" => true,
+      "mergeable_state" => "blocked",
+      "html_url" => "https://github.example/example-org/example-repo/pull/7",
+      "user" => %{"login" => "ana-gh"},
+      "head" => %{"ref" => "DEMO-12-export", "sha" => @gh_sha},
+      "base" => %{"ref" => "main"},
+      "requested_reviewers" => [%{"login" => "bea"}],
+      "requested_teams" => [%{"slug" => "backend"}],
+      "updated_at" => "2026-11-26T09:00:00Z"
+    })
+  end
+
+  defp gh(conn, "GET", @gh_repo <> "/pulls/7/reviews"),
+    do:
+      Req.Test.json(conn, [
+        %{
+          "user" => %{"login" => "carla-gh"},
+          "state" => "CHANGES_REQUESTED",
+          "submitted_at" => "2026-11-26T08:00:00Z"
+        },
+        %{
+          "user" => %{"login" => "dan-gh"},
+          "state" => "COMMENTED",
+          "submitted_at" => "2026-11-26T08:30:00Z"
+        }
+      ])
+
+  defp gh(conn, "GET", @gh_repo <> "/pulls/7/commits"),
+    do: Req.Test.json(conn, [%{"sha" => @gh_sha, "commit" => %{"message" => "DEMO-12: export"}}])
+
+  defp gh(conn, "GET", @gh_repo <> "/commits/" <> rest) do
+    cond do
+      String.ends_with?(rest, "/check-runs") ->
+        Req.Test.json(conn, %{
+          "total_count" => 2,
+          "check_runs" => [
+            %{
+              "name" => "test",
+              "status" => "completed",
+              "conclusion" => "failure",
+              "html_url" =>
+                "https://github.example/example-org/example-repo/actions/runs/4242/job/9001",
+              "output" => %{"title" => "Process completed with exit code 1."}
+            },
+            %{
+              "name" => "lint",
+              "status" => "completed",
+              "conclusion" => "success",
+              "html_url" =>
+                "https://github.example/example-org/example-repo/actions/runs/4242/job/9002",
+              "output" => %{"title" => nil}
+            }
+          ]
+        })
+
+      String.ends_with?(rest, "/status") ->
+        Req.Test.json(conn, %{
+          "state" => "success",
+          "statuses" => [
+            %{
+              "context" => "coverage",
+              "state" => "success",
+              "description" => "92% covered",
+              "target_url" => "https://coverage.example/example-repo"
+            }
+          ]
+        })
+    end
+  end
+
+  defp gh(conn, "GET", @gh_repo <> "/branches/main"),
+    do: Req.Test.json(conn, %{"name" => "main", "commit" => %{"sha" => @gh_sha}})
+
+  defp gh(conn, "GET", @gh_repo <> "/actions/runs"),
+    do:
+      Req.Test.json(conn, %{
+        "total_count" => 1,
+        "workflow_runs" => [gh_run("completed", "failure")]
+      })
+
+  defp gh(conn, "GET", @gh_repo <> "/actions/runs/4242"),
+    do: Req.Test.json(conn, gh_run("completed", "failure"))
+
+  defp gh(conn, "GET", @gh_repo <> "/actions/runs/4242/jobs") do
+    Req.Test.json(conn, %{
+      "total_count" => 2,
+      "jobs" => [
+        %{
+          "id" => 9001,
+          "name" => "test",
+          "status" => "completed",
+          "conclusion" => "failure",
+          "html_url" =>
+            "https://github.example/example-org/example-repo/actions/runs/4242/job/9001",
+          "steps" => [
+            %{"name" => "Set up job", "status" => "completed", "conclusion" => "success"},
+            %{"name" => "Run tests", "status" => "completed", "conclusion" => "failure"}
+          ]
+        },
+        %{
+          "id" => 9002,
+          "name" => "lint",
+          "status" => "completed",
+          "conclusion" => "success",
+          "steps" => []
+        }
+      ]
+    })
+  end
+
+  defp gh(conn, "GET", @gh_repo <> "/actions/jobs/9001/logs") do
+    conn
+    |> put_resp_header("location", "http://logs.github.test/jobs/9001.txt?sig=short-lived")
+    |> send_resp(302, "")
+  end
+
+  defp gh(conn, _method, _path),
+    do: conn |> put_status(404) |> Req.Test.json(%{"message" => "Not Found"})
+
+  @doc "A GitHub Actions run as the API returns it."
+  def gh_run(status, conclusion) do
+    %{
+      "id" => 4242,
+      "run_number" => 31,
+      "name" => "CI",
+      "display_title" => "Export invoices",
+      "path" => ".github/workflows/ci.yml",
+      "event" => "pull_request",
+      "status" => status,
+      "conclusion" => conclusion,
+      "head_sha" => @gh_sha,
+      "html_url" => "https://github.example/example-org/example-repo/actions/runs/4242",
+      "run_started_at" => "2026-11-26T09:05:00Z"
+    }
+  end
+
+  def github_log do
+    """
+    \uFEFF2026-11-26T09:05:01.1234567Z ##[group]Run actions/checkout@v4
+    2026-11-26T09:05:01.2234567Z with:
+    2026-11-26T09:05:01.3234567Z ##[endgroup]
+    2026-11-26T09:05:02.0000000Z Checked out
+    2026-11-26T09:05:03.0000000Z ##[group]Run mix test
+    2026-11-26T09:05:03.1000000Z mix test
+    2026-11-26T09:05:03.2000000Z env:
+    2026-11-26T09:05:03.3000000Z   GITHUB_TOKEN: ghs_abcdefghijklmnopqrstuvwxyz0123456789
+    2026-11-26T09:05:03.4000000Z ##[endgroup]
+    2026-11-26T09:05:09.0000000Z export API_TOKEN=hunter2hunter2
+    2026-11-26T09:05:10.0000000Z   1) test exports invoices (Example.ExportTest)
+    2026-11-26T09:05:10.1000000Z      Assertion with == failed
+    2026-11-26T09:05:10.2000000Z 212 tests, 1 failure
+    2026-11-26T09:05:10.3000000Z ##[error]Process completed with exit code 2.
+    2026-11-26T09:05:10.4000000Z Post job cleanup.
     """
   end
 

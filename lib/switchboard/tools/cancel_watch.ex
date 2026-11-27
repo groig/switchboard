@@ -32,6 +32,9 @@ defmodule Switchboard.Tools.CancelWatch do
   def connections, do: []
 
   @impl true
+  def aliases, do: %{"watch_id" => "id"}
+
+  @impl true
   def example do
     %{
       args: %{"id" => "5b1c0d2e-7f3a-4c51-9e0b-2a6d8c4f1e37"},

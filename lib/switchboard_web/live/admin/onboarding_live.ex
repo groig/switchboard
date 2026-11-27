@@ -71,6 +71,9 @@ defmodule SwitchboardWeb.Admin.OnboardingLive do
           ]}>
             {row.accounts_linked}/{row.accounts_total}
           </span>
+          <.badge :for={system <- row.optional_linked} id={"optional-#{row.user.id}-#{system}"}>
+            {optional_label(system)}
+          </.badge>
         </:col>
         <:col :let={row} label={gettext("Prompts tried")}>
           <div class="flex w-28 items-center gap-2">
@@ -97,6 +100,13 @@ defmodule SwitchboardWeb.Admin.OnboardingLive do
   end
 
   # The latest of the last audit row and the last sign-in.
+  defp optional_label(system) do
+    case Switchboard.Upstreams.fetch(system) do
+      {:ok, mod} -> mod.label()
+      :error -> system
+    end
+  end
+
   defp last_active(%{last_active: a, user: %{last_login_at: b}}) do
     [a, b]
     |> Enum.reject(&is_nil/1)

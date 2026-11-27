@@ -19,4 +19,18 @@ defmodule Switchboard.Upstream do
   @callback fields() :: [field()]
   @callback whoami(secret :: map()) ::
               {:ok, map()} | {:error, :unauthorized | :timeout | term()}
+
+  @doc "Whether the system is set up on this server (hidden everywhere when not). Default true."
+  @callback enabled?() :: boolean()
+
+  @doc """
+  For a system linked through an OAuth flow in the browser instead of a pasted key: the path
+  that starts it (the Connections page shows a Connect button).
+  """
+  @callback connect_path() :: String.t()
+
+  @doc "Only some people need it (onboarding doesn't count it as missing). Default false."
+  @callback optional?() :: boolean()
+
+  @optional_callbacks enabled?: 0, connect_path: 0, optional?: 0
 end

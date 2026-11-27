@@ -60,7 +60,7 @@ defmodule Switchboard.Tools.Workflow do
   @impl true
   def annotations, do: %{read_only: true, open_world: true}
   @impl true
-  def connections, do: [:plane, :forgejo, :argus, :outline, :rocketchat]
+  def connections, do: [:plane, :forgejo, :github, :argus, :outline, :rocketchat]
 
   @impl true
   def example do

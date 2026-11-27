@@ -71,6 +71,14 @@ config :switchboard, Switchboard.Forgejo,
   req_options: [plug: {Req.Test, Switchboard.Forgejo}]
 
 # CIMD fetches go to a Req.Test stub; tests set the resolver they need.
+# GitHub's web and API hosts are answered by the Switchboard.Upstreams stub too.
+config :switchboard, Switchboard.GitHub,
+  url: "http://github.test",
+  api_url: "http://api.github.test",
+  client_id: "gh-client",
+  client_secret: "gh-secret",
+  owners: ["example-org"]
+
 config :switchboard, Switchboard.OAuth.CIMD,
   req_options: [plug: {Req.Test, Switchboard.OAuth.CIMD}],
   resolver: &Switchboard.OAuthFixtures.public_resolver/1

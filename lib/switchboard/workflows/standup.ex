@@ -20,7 +20,7 @@ defmodule Switchboard.Workflows.Standup do
   @impl true
   def description,
     do:
-      "Draft my standup (yesterday, today, blockers) from Plane, Forgejo and my local commits; " <>
+      "Draft my standup (yesterday, today, blockers) from Plane, Forgejo (and GitHub) and my local commits; " <>
         "optionally post it to a channel after I confirm."
 
   @impl true
@@ -34,7 +34,7 @@ defmodule Switchboard.Workflows.Standup do
     ]
 
   @impl true
-  def connections, do: [:plane, :forgejo]
+  def connections, do: [:plane, :forgejo, :github]
   @impl true
   def fetches,
     do: [
@@ -74,7 +74,7 @@ defmodule Switchboard.Workflows.Standup do
                "No Plane item assigned to you or created by you changed since then."
              )
            end},
-          {:prs, :forgejo, fn -> Facts.pr_activity(scope, since) end},
+          {:prs, Switchboard.Repos.systems(scope), fn -> Facts.pr_activity(scope, since) end},
           {:today, :plane,
            fn ->
              Facts.plane_open(scope, today,
@@ -82,7 +82,7 @@ defmodule Switchboard.Workflows.Standup do
                empty: "Nothing of yours is in progress, due today or overdue."
              )
            end},
-          {:attention, :forgejo,
+          {:attention, Switchboard.Repos.systems(scope),
            fn ->
              Facts.my_prs(scope,
                only_attention: true,

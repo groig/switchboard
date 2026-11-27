@@ -32,6 +32,9 @@ defmodule Switchboard.Tools.DocsSearch do
   def connections, do: [:outline]
 
   @impl true
+  def aliases, do: %{"q" => "query", "text" => "query", "search" => "query"}
+
+  @impl true
   def example do
     %{
       args: %{"query" => "deploy checklist"},

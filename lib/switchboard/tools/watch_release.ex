@@ -45,6 +45,9 @@ defmodule Switchboard.Tools.WatchRelease do
   def connections, do: []
 
   @impl true
+  def aliases, do: %{"repository" => "repo"}
+
+  @impl true
   def example do
     %{
       args: %{"repo" => "demo", "health" => true},

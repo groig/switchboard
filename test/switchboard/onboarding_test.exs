@@ -49,8 +49,13 @@ defmodule Switchboard.OnboardingTest do
                "plane" => :linked,
                "argus" => :error,
                "outline" => :error,
-               "rocketchat" => :linked
+               "rocketchat" => :linked,
+               # Optional: only for repositories on GitHub.
+               "github" => :missing
              }
+
+      assert [%{system: "github", optional: true}] =
+               Enum.filter(Onboarding.accounts(scope(user)), & &1.optional)
     end
 
     test "what each system unlocks comes from the workflow registry" do

@@ -48,6 +48,9 @@ defmodule Switchboard.Tools.PlaneGetImage do
   def connections, do: [:plane]
 
   @impl true
+  def aliases, do: Switchboard.Tools.Support.task_aliases("task")
+
+  @impl true
   def example do
     %{
       args: %{"task" => "DEMO-12", "image" => 1},

@@ -110,7 +110,7 @@ defmodule Switchboard.ReadToolsTest do
         refute md =~ "lint"
       end
 
-      assert {:error, "repo must be owner/name"} =
+      assert {:error, "repo must be owner/name" <> _} =
                Tools.run(scope, "ci_failure", %{"repo" => "x", "pr" => 1})
 
       refute_received {:forgejo_write, _, _}

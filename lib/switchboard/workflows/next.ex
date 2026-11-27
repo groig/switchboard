@@ -26,7 +26,7 @@ defmodule Switchboard.Workflows.Next do
   @impl true
   def arguments, do: []
   @impl true
-  def connections, do: [:plane, :forgejo, :argus, :rocketchat, :releases]
+  def connections, do: [:plane, :forgejo, :github, :argus, :rocketchat, :releases]
   @impl true
   def fetches,
     do: [
@@ -51,8 +51,8 @@ defmodule Switchboard.Workflows.Next do
       Facts.gather(
         [
           {:plane, :plane, fn -> Facts.plane_open(scope, today, limit: 20) end},
-          {:reviews, :forgejo, fn -> Facts.review_requests(scope) end},
-          {:mine, :forgejo,
+          {:reviews, Switchboard.Repos.systems(scope), fn -> Facts.review_requests(scope) end},
+          {:mine, Switchboard.Repos.systems(scope),
            fn ->
              Facts.my_prs(scope,
                since: DateTime.add(ctx.now, -2 * 86_400),

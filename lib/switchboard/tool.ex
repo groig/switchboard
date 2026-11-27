@@ -27,7 +27,7 @@ defmodule Switchboard.Tool do
         }
 
   @typedoc "Upstream systems a tool needs the caller to have connected."
-  @type connection :: :forgejo | :plane | :argus | :outline | :rocketchat
+  @type connection :: :forgejo | :github | :plane | :argus | :outline | :rocketchat
 
   @callback name() :: String.t()
   @callback title() :: String.t()
@@ -53,5 +53,12 @@ defmodule Switchboard.Tool do
   @doc "Sample arguments and output for `docs/TOOLS.md` (`mix switchboard.gen.tools_doc`)."
   @callback example() :: %{args: map(), output: String.t()}
 
-  @optional_callbacks sensitive_args: 0, example: 0
+  @doc """
+  Other names agents plausibly use for an argument, `%{"identifier" => "id"}`. `Tools.run/3`
+  renames an alias to the real argument when the real one is absent, and records the alias in
+  the audit row (`_aliases`).
+  """
+  @callback aliases() :: %{String.t() => String.t()}
+
+  @optional_callbacks sensitive_args: 0, example: 0, aliases: 0
 end

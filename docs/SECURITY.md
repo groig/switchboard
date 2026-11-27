@@ -6,7 +6,8 @@ grows with each milestone.
 
 ## Assets
 
-- Upstream credentials (Plane, Argus, Outline, Rocket.Chat keys; Forgejo OAuth tokens).
+- Upstream credentials (Plane, Argus, Outline, Rocket.Chat keys; Forgejo and GitHub OAuth tokens;
+  the GitHub OAuth App's client secret).
 - Switchboard bearer tokens (OAuth access and refresh tokens, personal `sb_` tokens).
 - The audit log.
 - Upstream data reached through tools, including private Rocket.Chat messages.
@@ -205,6 +206,29 @@ is meant to follow. The risk is that upstream text passes for part of those inst
   watch.
 - **Forgejo token:** watches only call `Switchboard.Forgejo` (GET only); tests assert it.
 
+### GitHub connection
+
+- **Linked only in the browser, by the person.** `/auth/github` needs a signed-in session; the
+  `state` (32 random bytes) and a PKCE verifier live in the session, the callback compares the
+  state in constant time and drops it (single use), and a mismatch or missing state is refused
+  before any code exchange. A token can't be pasted (`Connections.link/3` refuses `github`). The
+  redirect URI is fixed (`<issuer>/auth/github/callback`), registered on the OAuth App.
+- **Token handling** as for the other secrets: encrypted at rest, never logged, never returned,
+  never given to tools; the guard test (`no_secrets_in_logs_test.exs`) runs connect, test, a tool
+  call and disconnect. The app's client secret is only sent to GitHub's token and grant
+  endpoints.
+- **Disconnect revokes the grant** in GitHub (`DELETE /applications/{client_id}/grant`), so the
+  token dies there too; if GitHub can't be reached, the row is removed anyway and the person is
+  told to revoke it in their GitHub settings.
+- **Org approval:** organizations that restrict OAuth Apps keep Switchboard out of their private
+  repositories until an owner approves it; tools say so on a 403/404 and link the person's app
+  settings, where they request approval. SAML SSO enforcement is reported with GitHub's
+  authorization link.
+- **CI logs from GitHub** are downloaded from the short-lived URL GitHub redirects to, without
+  the token (only http(s), no credentials in the URL, 4 MB), and scrubbed like Forgejo's.
+- **Rate limits:** GitHub's budget is per token (the person's), so one person can't spend
+  another's; Switchboard stops calling with a token whose budget is used up until GitHub's reset.
+
 ### Confused deputy
 
 - A tool acts only with the caller's own credential (`Upstreams.credential/2` takes the scope's
@@ -251,6 +275,21 @@ Scrubbing is best effort: the log is still the person's own data, read with thei
     asserts that every Forgejo request any tool makes is a GET. Forgejo tools are read-only in v1;
   - Switchboard requests narrow scopes anyway, so the consent screen is honest and nothing changes
     if Forgejo starts enforcing them.
+- **Accepted risk: the GitHub token can write.** Classic OAuth Apps have no read-only scope for
+  private repositories: reading their pull requests, checks and Actions logs needs `repo`, which
+  is read and write. The decision (2026-11-27) is to request only `repo` (no `workflow`,
+  `read:org`, `admin:*` or `delete_repo`) and to keep the same guarantee as for Forgejo, read-only
+  by construction:
+  - `Switchboard.GitHub` can only send `GET` (there is no other request function), and a test
+    asserts that every GitHub request any tool makes is a GET (`github_tools_test.exs`, and the
+    CI watch test). The only non-GET requests to GitHub are the OAuth code exchange and the grant
+    revocation in `Switchboard.GitHub.Login`;
+  - GitHub tools are read-only; `watch_ci` writes only Switchboard's own watch.
+  A GitHub App (user-to-server tokens limited to read-only Pull requests, Checks, Actions and
+  Contents permissions, refreshed every 8 hours) would make the token itself read-only. It needs
+  the app installed on each organization, a refresh path like Forgejo's, and per-installation
+  repository selection; it is the better option if the read-only guarantee must not rest on
+  Switchboard's code. Adding any GitHub write needs a recorded decision here first.
 - **Fail open on Forgejo outages** during refresh (see above). The exposure is bounded by the
   access-token lifetime and the next refresh.
 - **Rocket.Chat's limiter is per IP:** every person's calls through Switchboard share

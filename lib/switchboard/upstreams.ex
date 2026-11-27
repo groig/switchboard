@@ -14,19 +14,23 @@ defmodule Switchboard.Upstreams do
     Switchboard.Upstreams.Plane,
     Switchboard.Upstreams.Argus,
     Switchboard.Upstreams.Outline,
-    Switchboard.Upstreams.RocketChat
+    Switchboard.Upstreams.RocketChat,
+    Switchboard.Upstreams.GitHub
   ]
 
   @max_body 2_000_000
 
-  @doc "Adapter modules, in display order."
-  def all, do: @adapters
+  @doc "Adapter modules set up on this server, in display order (GitHub only when configured)."
+  def all, do: Enum.filter(@adapters, &enabled?/1)
+
+  defp enabled?(mod),
+    do: not function_exported?(mod, :enabled?, 0) or mod.enabled?()
 
   @doc "System names (strings), in display order."
-  def systems, do: Enum.map(@adapters, & &1.system())
+  def systems, do: Enum.map(all(), & &1.system())
 
   def fetch(system) when is_binary(system) do
-    case Enum.find(@adapters, &(&1.system() == system)) do
+    case Enum.find(all(), &(&1.system() == system)) do
       nil -> :error
       mod -> {:ok, mod}
     end
@@ -39,12 +43,13 @@ defmodule Switchboard.Upstreams do
 
   @doc "A system's base URL, without a trailing slash."
   def base_url(:forgejo), do: Switchboard.Forgejo.Login.base_url()
+  def base_url(:github), do: Switchboard.GitHub.api_url()
 
   def base_url(system),
     do: system |> config() |> Keyword.fetch!(:url) |> String.trim_trailing("/")
 
   @doc "Every upstream system, as atoms (including the releases service)."
-  def atoms, do: [:forgejo, :plane, :argus, :outline, :rocketchat, :releases]
+  def atoms, do: [:forgejo, :plane, :argus, :outline, :rocketchat, :github, :releases]
 
   @doc """
   Performs a request against `system`. `opts` are Req options (`:url`, `:method`, `:headers`,
@@ -146,9 +151,11 @@ defmodule Switchboard.Upstreams do
   `[%{system:, label:, url:, status: :up | :down, detail:, ms:}]` in display order.
   """
   def health(timeout \\ 5_000) do
-    @adapters
+    adapters = all()
+
+    adapters
     |> Task.async_stream(&check/1, timeout: timeout, on_timeout: :kill_task, ordered: true)
-    |> Enum.zip(@adapters)
+    |> Enum.zip(adapters)
     |> Enum.map(fn
       {{:ok, result}, _mod} -> result
       {{:exit, _}, mod} -> %{health_base(mod) | status: :down, detail: "timeout"}
@@ -173,7 +180,8 @@ defmodule Switchboard.Upstreams do
     "plane" => :plane,
     "argus" => :argus,
     "outline" => :outline,
-    "rocketchat" => :rocketchat
+    "rocketchat" => :rocketchat,
+    "github" => :github
   }
 
   defp atom(system), do: Map.fetch!(@atoms, system)
@@ -242,14 +250,16 @@ defmodule Switchboard.Upstreams do
   def label(:argus), do: "Argus"
   def label(:outline), do: "Outline"
   def label(:rocketchat), do: "Rocket.Chat"
+  def label(:github), do: "GitHub"
   def label(:releases), do: "Releases"
 
   @doc """
   The person's row for a system on the Connections page (an anchor), or the page itself for a
   system without a personal key (the releases feed).
   """
-  def connection_url(system) when system in [:plane, :argus, :outline, :rocketchat, :forgejo],
-    do: Switchboard.OAuth.issuer() <> "/connections#connection-#{system}"
+  def connection_url(system)
+      when system in [:plane, :argus, :outline, :rocketchat, :forgejo, :github],
+      do: Switchboard.OAuth.issuer() <> "/connections#connection-#{system}"
 
   def connection_url(_system), do: Switchboard.OAuth.issuer() <> "/connections"
 
@@ -261,6 +271,9 @@ defmodule Switchboard.Upstreams do
     connect = connection_url(system)
 
     case reason do
+      :not_connected when system == :github ->
+        "GitHub is not connected (only needed for repositories on GitHub). Connect it at #{connect}"
+
       :not_connected ->
         "#{name} is not connected. Link it at #{connect}"
 
@@ -285,6 +298,16 @@ defmodule Switchboard.Upstreams do
       :rate_limited ->
         "#{name} rate limit reached. Try again in a minute."
 
+      {:rate_limited, seconds} when system == :github ->
+        "GitHub's rate limit for your account is used up (it is shared with your other tools " <>
+          "that use GitHub). It resets in about #{wait(seconds)}."
+
+      {:rate_limited, seconds} ->
+        "#{name} rate limit reached. Try again in about #{wait(seconds)}."
+
+      {:sso, url} ->
+        "#{name} requires single sign-on for this organization: authorize Switchboard at #{url}, then try again."
+
       :timeout ->
         "#{name} didn't answer in time; this part is missing."
 
@@ -300,11 +323,19 @@ defmodule Switchboard.Upstreams do
       :crashed ->
         "#{name}: Switchboard failed reading it; the error was logged."
 
+      :not_configured when system == :github ->
+        "GitHub is not set up on this Switchboard (an administrator sets GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET); only Forgejo repositories work."
+
       :not_configured ->
         "#{name} is not configured on this server."
 
       :unexpected_response ->
         "#{name} answered something Switchboard doesn't understand."
+
+      # A 4xx is about the request (an owner, repository or id that doesn't exist, a bad
+      # filter), not an outage.
+      {:status, s} when s in 400..499 ->
+        "#{name} refused the request (HTTP #{s}): something it names (a repository, id or filter) doesn't exist or isn't valid there."
 
       {:status, s} ->
         "#{name} answered HTTP #{s}; this part is missing."
@@ -313,6 +344,9 @@ defmodule Switchboard.Upstreams do
         "#{name} is unreachable; this part is missing."
     end
   end
+
+  defp wait(seconds) when seconds < 90, do: "a minute"
+  defp wait(seconds), do: "#{div(seconds + 59, 60)} minutes"
 
   @doc "Maps a response or error to the usual identity-check outcome."
   def classify({:ok, %Req.Response{status: status}}) when status in [401, 403],

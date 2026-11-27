@@ -34,6 +34,9 @@ defmodule Switchboard.Tools.PlaneSetState do
   def connections, do: [:plane]
 
   @impl true
+  def aliases, do: Map.put(Switchboard.Tools.Support.task_aliases("id"), "status", "state")
+
+  @impl true
   def example do
     %{
       args: %{"id" => "DEMO-12", "state" => "In Review"},

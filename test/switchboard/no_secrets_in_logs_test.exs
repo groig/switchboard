@@ -5,6 +5,8 @@ defmodule Switchboard.NoSecretsInLogsTest do
 
     * linking and re-linking every connection type (context and LiveView form);
     * Forgejo sign-in (code exchange, tokens) and token refresh;
+    * connecting GitHub (code, verifier, token), testing it, a tool call and disconnecting
+      (the revoke sends the token and the app secret);
     * OAuth for MCP clients: registration, consent, code exchange, refresh, revocation, a tool
       call with the bearer;
     * personal tokens: creation (LiveView) and use;
@@ -193,6 +195,60 @@ defmodule Switchboard.NoSecretsInLogsTest do
         Logger.flush()
       end)
 
+    assert_clean(log)
+  end
+
+  test "GitHub: connect, test, a tool call and disconnect", %{conn: conn} do
+    {user, _} = with_log(fn -> user_fixture() end)
+    token = "gho_" <> secret("gh-token")
+
+    Req.Test.stub(Switchboard.Upstreams, fn conn ->
+      case {conn.host, conn.method, conn.request_path} do
+        {"github.test", "POST", "/login/oauth/access_token"} ->
+          Req.Test.json(conn, %{"access_token" => token, "scope" => "repo"})
+
+        {"api.github.test", "GET", "/user"} ->
+          Req.Test.json(conn, %{"login" => "logcheck-gh", "name" => nil, "email" => nil})
+
+        {"api.github.test", "DELETE", "/applications/gh-client/grant"} ->
+          Plug.Conn.send_resp(conn, 204, "")
+
+        {"api.github.test", "GET", "/repos/example-org/example-repo/pulls/7"} ->
+          Req.Test.json(conn, %{"number" => 7, "title" => "t", "head" => %{"sha" => "abc"}})
+
+        _ ->
+          conn |> Plug.Conn.put_status(404) |> Req.Test.json(%{"message" => "Not Found"})
+      end
+    end)
+
+    log =
+      capture_log([level: :debug], fn ->
+        conn = log_in_user(conn, user)
+        conn = get(conn, ~p"/auth/github")
+        %{"state" => state} = URI.decode_query(URI.parse(redirected_to(conn)).query)
+
+        conn =
+          get(
+            recycle(conn) |> Map.put(:secret_key_base, conn.secret_key_base),
+            ~p"/auth/github/callback?code=#{secret("gh-code")}&state=#{state}"
+          )
+
+        assert redirected_to(conn) == "/connections#connection-github"
+        scope = Scope.for_user(user)
+        assert {:ok, _} = Connections.test(scope, "github")
+
+        assert {:ok, _} =
+                 Tools.run(scope, "pr_status", %{
+                   "repo" => "example-org/example-repo",
+                   "number" => 7
+                 })
+
+        assert :ok = Connections.unlink(scope, "github")
+        Logger.flush()
+      end)
+
+    assert log =~ "QUERY OK"
+    refute log =~ "gh-secret"
     assert_clean(log)
   end
 

@@ -224,7 +224,7 @@ defmodule Switchboard.PlaneImagesTest do
 
       assert {:error, msg} = image(scope, "../etc")
       assert msg =~ "image must be a number"
-      assert {:error, "Invalid arguments: image"} = image(scope, true)
+      assert {:error, "Invalid arguments: image (string or integer)." <> _} = image(scope, true)
     end
 
     test "audited with the image size", %{scope: scope} do

@@ -1,8 +1,9 @@
 defmodule Switchboard.Tools.RepoSearchPrs do
-  @moduledoc "Search Forgejo pull requests."
+  @moduledoc "Search pull requests on Forgejo and GitHub."
   use Switchboard.Tools.Support
 
-  alias Switchboard.Forgejo
+  alias Switchboard.{Forgejo, GitHub, Repos}
+  alias Switchboard.Repos.Ref
 
   @impl true
   def name, do: "repo_search_prs"
@@ -11,8 +12,10 @@ defmodule Switchboard.Tools.RepoSearchPrs do
   @impl true
   def description,
     do:
-      "Searches Forgejo pull requests you can see: by text (e.g. a task id like PROJ-123), " <>
-        "repository, state, and whether you created them or your review was requested."
+      "Searches pull requests you can see: by text (e.g. a task id like PROJ-123), " <>
+        "repository, state, and whether you created them or your review was requested. " <>
+        "Without repo it searches Forgejo, and GitHub's configured organizations when you " <>
+        "connected GitHub."
 
   @impl true
   def input_schema do
@@ -20,7 +23,10 @@ defmodule Switchboard.Tools.RepoSearchPrs do
       "type" => "object",
       "properties" => %{
         "query" => %{"type" => "string", "description" => "Text in the title or description."},
-        "repo" => %{"type" => "string", "description" => "Only this repository (owner/name)."},
+        "repo" => %{
+          "type" => "string",
+          "description" => "Only this repository. " <> Repos.schema_description()
+        },
         "state" => %{
           "type" => "string",
           "enum" => ["open", "closed", "all"],
@@ -38,7 +44,11 @@ defmodule Switchboard.Tools.RepoSearchPrs do
   @impl true
   def annotations, do: %{read_only: true, open_world: true}
   @impl true
-  def connections, do: [:forgejo]
+  def connections, do: [:forgejo, :github]
+
+  @impl true
+  def aliases,
+    do: %{"repository" => "repo", "q" => "query", "text" => "query", "search" => "query"}
 
   @impl true
   def example do
@@ -68,35 +78,36 @@ defmodule Switchboard.Tools.RepoSearchPrs do
           _ -> []
         end
 
-    with {:ok, repo_filter} <- repo_filter(args["repo"]) do
-      params = if repo_filter, do: Keyword.put(params, :owner, elem(repo_filter, 0)), else: params
+    case blank(args["repo"]) do
+      nil ->
+        case Repos.search_all(scope, params) do
+          {:ok, prs, notes} -> {:ok, render(prs, args, state) |> with_notes(notes)}
+          {:error, line} when is_binary(line) -> {:error, line}
+          {:error, reason} -> {:error, problem(:forgejo, reason)}
+        end
 
-      case Forgejo.search_prs(scope, params) do
-        {:ok, prs} ->
-          prs =
-            if repo_filter,
-              do:
-                Enum.filter(
-                  prs,
-                  &(get_in(&1, ["repository", "full_name"]) ==
-                      "#{elem(repo_filter, 0)}/#{elem(repo_filter, 1)}")
-                ),
-              else: prs
-
-          {:ok, render(prs, args, state)}
-
-        {:error, reason} ->
-          {:error, problem(:forgejo, reason)}
-      end
+      repo ->
+        with {:ok, ref} <- Repos.resolve(repo) do
+          case in_repo(scope, ref, params) do
+            {:ok, prs} -> {:ok, render(prs, args, state)}
+            {:error, reason} -> {:error, Repos.problem(ref, reason)}
+          end
+        end
     end
   end
 
-  defp repo_filter(nil), do: {:ok, nil}
+  defp in_repo(scope, %Ref{host: :github} = ref, params),
+    do: GitHub.search_prs(scope, Keyword.put(params, :repo, Ref.full(ref)))
 
-  defp repo_filter(repo) do
-    case Forgejo.parse_repo(repo) do
-      {:ok, o, n} -> {:ok, {o, n}}
-      _ -> {:error, "repo must be owner/name"}
+  defp in_repo(scope, %Ref{} = ref, params) do
+    with {:ok, prs} <- Forgejo.search_prs(scope, Keyword.put(params, :owner, ref.owner)) do
+      full = String.downcase(Ref.full(ref))
+
+      {:ok,
+       Enum.filter(
+         prs,
+         &(String.downcase(get_in(&1, ["repository", "full_name"]) || "") == full)
+       )}
     end
   end
 

@@ -118,6 +118,10 @@ defmodule Switchboard.Workflows.Help do
   defp status_md(%{system: "forgejo"}),
     do: "error: sign out and sign in again at #{Onboarding.start_url()}"
 
+  defp status_md(%{system: "github", status: :missing}),
+    do:
+      "not connected (only needed for repositories on GitHub): connect it at #{Onboarding.connection_url("github")}"
+
   defp status_md(%{system: s, status: :missing}),
     do: "**missing**: link it at #{Onboarding.connection_url(s)}"
 

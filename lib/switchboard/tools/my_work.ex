@@ -7,7 +7,7 @@ defmodule Switchboard.Tools.MyWork do
   """
   use Switchboard.Tools.Support
 
-  alias Switchboard.{FanOut, Forgejo, Plane, Releases, Upstreams}
+  alias Switchboard.{FanOut, Forgejo, Plane, Releases, Repos, Upstreams}
   alias Switchboard.Tools.{ForgejoRender, PlaneMyItems, ReleaseRender}
 
   @max_prs 6
@@ -22,7 +22,8 @@ defmodule Switchboard.Tools.MyWork do
   def description,
     do:
       "One view of your day across systems: Plane items assigned to you (urgent and due first), " <>
-        "your open pull requests and review requests with CI status, recent unresolved Argus " <>
+        "your open pull requests and review requests with CI status (Forgejo, and GitHub's " <>
+        "configured organizations when you connected GitHub), recent unresolved Argus " <>
         "errors (flagged when they point at files you changed recently), and what of yours " <>
         "shipped to production in the last 7 days. Use it for \"what's on my plate?\"."
 
@@ -44,7 +45,7 @@ defmodule Switchboard.Tools.MyWork do
   @impl true
   def annotations, do: %{read_only: true, open_world: true}
   @impl true
-  def connections, do: [:plane, :forgejo, :argus]
+  def connections, do: [:plane, :forgejo, :github, :argus]
 
   @impl true
   def example do
@@ -96,7 +97,7 @@ defmodule Switchboard.Tools.MyWork do
       FanOut.run(
         [
           {:plane, :plane, fn -> plane(scope) end},
-          {:prs, :forgejo, fn -> prs(scope) end},
+          {:prs, Repos.systems(scope), fn -> prs(scope) end},
           {:errors, :argus, fn -> errors(scope, since) end},
           {:commits, :forgejo, fn -> my_commits(scope, since) end},
           {:releases, :releases,
@@ -130,16 +131,20 @@ defmodule Switchboard.Tools.MyWork do
     end
   end
 
+  # Forgejo, plus GitHub (configured owners) for people who connected it; a system that fails
+  # is a note.
   defp prs(scope) do
-    mine = Forgejo.search_prs(scope, state: "open", created: true, limit: 20)
-    asked = Forgejo.search_prs(scope, state: "open", review_requested: true, limit: 20)
+    mine = Repos.search_all(scope, state: "open", created: true, limit: 20)
+    asked = Repos.search_all(scope, state: "open", review_requested: true, limit: 20)
 
-    with {:ok, mine} <- mine, {:ok, asked} <- asked do
+    with {:ok, mine, notes} <- mine, {:ok, asked, more_notes} <- asked do
+      own = MapSet.new(mine, &Repos.key/1)
+
       tagged =
         Enum.map(mine, &{&1, "yours"}) ++
           for(
             pr <- asked,
-            pr["id"] not in Enum.map(mine, & &1["id"]),
+            not MapSet.member?(own, Repos.key(pr)),
             do: {pr, "review requested"}
           )
 
@@ -156,15 +161,15 @@ defmodule Switchboard.Tools.MyWork do
           {_, {pr, why}} -> {pr, why, "–"}
         end)
 
-      {:ok, details, length(tagged)}
+      {:ok, details, length(tagged), Enum.uniq(notes ++ more_notes)}
     end
   end
 
   defp ci(scope, issue) do
-    with {:ok, owner, repo} <-
-           Forgejo.parse_repo(get_in(issue, ["repository", "full_name"]) || ""),
-         {:ok, pr} <- Forgejo.pull(scope, owner, repo, issue["number"]),
-         {:ok, status} <- Forgejo.status(scope, owner, repo, get_in(pr, ["head", "sha"])) do
+    with {:ok, ref} <- Repos.ref_for(issue),
+         client = Repos.client(ref),
+         {:ok, pr} <- client.pull(scope, ref.owner, ref.name, issue["number"]),
+         {:ok, status} <- client.status(scope, ref.owner, ref.name, get_in(pr, ["head", "sha"])) do
       if status["statuses"] in [nil, []],
         do: "–",
         else: ForgejoRender.check_state(status["state"])
@@ -251,10 +256,10 @@ defmodule Switchboard.Tools.MyWork do
   defp plane_section({:ok, items, notes}), do: {PlaneMyItems.render(items) |> demote(), notes}
   defp plane_section({:error, reason}), do: {"## My Plane items\n\n–", [problem(:plane, reason)]}
 
-  defp pr_section({:ok, [], _}),
-    do: {"## Pull requests\n\nNo open pull requests of yours or waiting for your review.", []}
+  defp pr_section({:ok, [], _, notes}),
+    do: {"## Pull requests\n\nNo open pull requests of yours or waiting for your review.", notes}
 
-  defp pr_section({:ok, details, total}) do
+  defp pr_section({:ok, details, total, notes}) do
     rows =
       Enum.map(details, fn {pr, why, ci} ->
         repo = get_in(pr, ["repository", "full_name"]) || "?"
@@ -273,9 +278,10 @@ defmodule Switchboard.Tools.MyWork do
         do: ["#{total - length(details)} more pull requests; use repo_search_prs."],
         else: []
 
-    {"## Pull requests\n\n" <> table(["PR", "Title", "Why", "State", "CI"], rows), more}
+    {"## Pull requests\n\n" <> table(["PR", "Title", "Why", "State", "CI"], rows), notes ++ more}
   end
 
+  defp pr_section({:error, line}) when is_binary(line), do: {"## Pull requests\n\n–", [line]}
   defp pr_section({:error, reason}), do: {"## Pull requests\n\n–", [problem(:forgejo, reason)]}
 
   defp error_section({:ok, [], _}, _commits, window),

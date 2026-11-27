@@ -38,6 +38,9 @@ defmodule Switchboard.Tools.ErrorGet do
   def connections, do: [:argus]
 
   @impl true
+  def aliases, do: %{"issue" => "id", "issue_id" => "id", "project_slug" => "project"}
+
+  @impl true
   def example do
     %{
       args: %{"project" => "demo-api", "id" => "7"},

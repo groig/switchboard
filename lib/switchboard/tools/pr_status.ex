@@ -2,7 +2,7 @@ defmodule Switchboard.Tools.PrStatus do
   @moduledoc "A pull request's reviews, mergeability and CI checks."
   use Switchboard.Tools.Support
 
-  alias Switchboard.{FanOut, Forgejo}
+  alias Switchboard.{FanOut, Repos}
   alias Switchboard.Tools.ForgejoRender
 
   @impl true
@@ -12,25 +12,40 @@ defmodule Switchboard.Tools.PrStatus do
   @impl true
   def description,
     do:
-      "Shows a Forgejo pull request's state, reviews, whether it can be merged, and its CI " <>
-        "checks. Use ci_failure for the log of a failed check."
+      "Shows a pull request's state, reviews, whether it can be merged, and its CI checks, on " <>
+        "Forgejo or GitHub (check runs and commit statuses). Use ci_failure for the log of a " <>
+        "failed check."
 
   @impl true
   def input_schema do
     %{
       "type" => "object",
       "properties" => %{
-        "repo" => %{"type" => "string", "description" => "owner/name, e.g. acme/web."},
-        "number" => %{"type" => "integer", "description" => "Pull request number."}
+        "repo" => %{"type" => "string", "description" => Repos.schema_description()},
+        "number" => %{
+          "type" => "integer",
+          "description" => "Pull request number (optional when repo is a pull request URL)."
+        }
       },
-      "required" => ["repo", "number"]
+      "required" => ["repo"]
     }
   end
 
   @impl true
+  def aliases,
+    do: %{
+      "repository" => "repo",
+      "pr" => "number",
+      "pr_number" => "number",
+      "index" => "number",
+      "pull" => "number",
+      "pull_request" => "number"
+    }
+
+  @impl true
   def annotations, do: %{read_only: true, open_world: true}
   @impl true
-  def connections, do: [:forgejo]
+  def connections, do: [:forgejo, :github]
 
   @impl true
   def example do
@@ -61,32 +76,43 @@ defmodule Switchboard.Tools.PrStatus do
   end
 
   @impl true
-  def call(scope, %{"repo" => repo, "number" => number}) do
-    with {:ok, owner, name} <- Forgejo.parse_repo(repo) |> repo_error() do
-      case Forgejo.pull(scope, owner, name, number) do
+  def call(scope, %{"repo" => repo} = args) do
+    with {:ok, ref} <- Repos.resolve(repo),
+         {:ok, number} <- number(args, ref) do
+      case Repos.client(ref).pull(scope, ref.owner, ref.name, number) do
         {:ok, pr} ->
-          {:ok, render(scope, owner, name, pr)}
+          {:ok, render(scope, ref, pr)}
 
         {:error, :not_found} ->
-          {:error, "No pull request #{repo}##{number}, or you can't see it."}
+          {:error,
+           Repos.missing(
+             scope,
+             ref,
+             "No pull request #{Repos.Ref.full(ref)}##{number}, or you can't see it."
+           )}
 
         {:error, reason} ->
-          {:error, problem(:forgejo, reason)}
+          {:error, Repos.problem(ref, reason)}
       end
     end
   end
 
-  defp repo_error({:error, :invalid_repo}), do: {:error, "repo must be owner/name"}
-  defp repo_error(ok), do: ok
+  defp number(%{"number" => n}, _ref) when is_integer(n), do: {:ok, n}
+  defp number(_args, %{pr: n}) when is_integer(n), do: {:ok, n}
 
-  defp render(scope, owner, name, pr) do
+  defp number(_args, _ref),
+    do: {:error, "Give the pull request number (number), or a pull request URL as repo."}
+
+  defp render(scope, ref, pr) do
+    %{owner: owner, name: name, host: host} = ref
+    client = Repos.client(ref)
     sha = get_in(pr, ["head", "sha"])
 
     extra =
       FanOut.run(
         [
-          {:reviews, :forgejo, fn -> Forgejo.reviews(scope, owner, name, pr["number"]) end},
-          {:status, :forgejo, fn -> Forgejo.status(scope, owner, name, sha) end}
+          {:reviews, host, fn -> client.reviews(scope, owner, name, pr["number"]) end},
+          {:status, host, fn -> client.status(scope, owner, name, sha) end}
         ],
         timeout: 8_000
       )
@@ -94,13 +120,13 @@ defmodule Switchboard.Tools.PrStatus do
     {reviews, notes} =
       case extra.reviews do
         {:ok, r} -> {ForgejoRender.reviews_summary(r, pr["requested_reviewers"]), []}
-        {:error, reason} -> {"–", ["Reviews: " <> problem(:forgejo, reason)]}
+        {:error, reason} -> {"–", ["Reviews: " <> problem(host, reason)]}
       end
 
     {checks, notes} =
       case extra.status do
         {:ok, s} -> {ForgejoRender.checks(s), notes}
-        {:error, reason} -> {"–", notes ++ ["Checks: " <> problem(:forgejo, reason)]}
+        {:error, reason} -> {"–", notes ++ ["Checks: " <> problem(host, reason)]}
       end
 
     facts =
@@ -111,7 +137,7 @@ defmodule Switchboard.Tools.PrStatus do
           "Branches",
           "#{cell(get_in(pr, ["head", "ref"]))} → #{cell(get_in(pr, ["base", "ref"]))}"
         ],
-        ["Mergeable", if(pr["mergeable"], do: "yes", else: "no (conflicts or blocked)")],
+        ["Mergeable", ForgejoRender.mergeable(pr)],
         ["Reviews", cell(reviews, 300)],
         ["Head", "`#{String.slice(sha || "", 0, 10)}`"],
         ["Updated", time(pr["updated_at"], scope)],

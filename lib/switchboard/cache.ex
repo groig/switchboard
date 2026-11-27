@@ -36,6 +36,12 @@ defmodule Switchboard.Cache do
     end
   end
 
+  @doc "Stores `value` under `key` for `ttl_ms`."
+  def put(key, value, ttl_ms) do
+    :ets.insert(@table, {key, value, System.monotonic_time(:millisecond) + ttl_ms})
+    :ok
+  end
+
   def clear, do: :ets.delete_all_objects(@table)
 
   @doc "Deletes entries whose key matches an ETS match pattern (`{:plane_get, kid, :_, :_}`)."

@@ -5,10 +5,11 @@ agent ──Streamable HTTP + bearer──▶ Caddy ──▶ Switchboard (Phoen
                                                ├─ /mcp                       MCP endpoint (OAuth or sb_ token)
                                                ├─ /oauth/*, /.well-known/*   authorization server
                                                ├─ /auth/forgejo*             sign in with Forgejo
+                                               ├─ /auth/github*              connect GitHub (OAuth App, optional)
                                                ├─ /hooks/forgejo             Forgejo webhook (HMAC; a hint for watches)
                                                ├─ web app (LiveView)         connections, clients, activity, watches, profile
                                                └─ /admin, /dev               private network only (proxy rule + ADMIN_NETWORKS)
-              upstreams: Forgejo · Plane · Argus · Outline · Rocket.Chat · release bot (releases feed)
+              upstreams: Forgejo · Plane · Argus · Outline · Rocket.Chat · release bot (releases feed) · GitHub (optional)
 ```
 
 ## Layers
@@ -22,7 +23,7 @@ agent ──Streamable HTTP + bearer──▶ Caddy ──▶ Switchboard (Phoen
 | Authorization server | `Switchboard.OAuth`, `Switchboard.OAuth.CIMD` | OAuth 2.1 for MCP clients (see `docs/CLIENTS.md`). |
 | Credentials | `Switchboard.Connections`, `Switchboard.Vault` | Per-person upstream secrets, encrypted with `cloak_ecto`. |
 | Personal tokens | `Switchboard.PersonalTokens` | `sb_...` bearer tokens for clients without OAuth. |
-| Read path | `Switchboard.Plane`, `.Forgejo`, `.Argus`, `.Outline`, `.Releases`, `Switchboard.Upstreams.Guard`, `Switchboard.FanOut`, `Switchboard.Untrusted` | Read-only API clients, per-upstream limits and breakers, concurrent fan-out (below). |
+| Read path | `Switchboard.Plane`, `.Forgejo`, `.GitHub`, `.Argus`, `.Outline`, `.Releases`, `Switchboard.Repos`, `Switchboard.Upstreams.Guard`, `Switchboard.FanOut`, `Switchboard.Untrusted` | Read-only API clients, Forgejo/GitHub routing, per-upstream limits and breakers, concurrent fan-out (below). |
 | Safety | `Switchboard.Audit`, `Switchboard.Controls`, `Switchboard.RateLimit` | Append-only audit, live kill switches and read-only mode, ETS token buckets. |
 | Watches | `Switchboard.Watches`, `Switchboard.Watches.*` (Oban workers) | "DM me when this finishes" (below). |
 | Workflows | `Switchboard.Workflow`, `Switchboard.Workflows`, `Switchboard.Workflows.*`, `Switchboard.Tools.Workflow` | Team workflows as MCP prompts (slash commands) and as the `workflow` tool (below). |
@@ -36,7 +37,11 @@ Every MCP tool call goes through it, in this order:
 2. read-only mode refuses tools whose annotations aren't `read_only`;
 3. the per-person, per-tool token bucket (`RateLimit.take/3`, limit from `Controls.rate_limit/1`:
    60/min for reads, 10/min for writes by default, overridable per tool from `/admin`);
-4. argument validation against the tool's JSON Schema (required, unknown, primitive types);
+4. argument aliases (`aliases/0`, e.g. `identifier` → `id`) renamed to the real name when that
+   one is absent and recorded in the audit row as `_aliases`, then validation against the tool's
+   JSON Schema (required, unknown, primitive types). A refusal names the missing and unknown
+   arguments and lists what the tool takes (type, one-line description, aliases) with an example
+   call, so an agent fixes it in one retry;
 5. the call, timed, with crashes turned into error results;
 6. a `[:switchboard, :tool, :call]` telemetry event and one audit row, whatever the outcome.
 
@@ -55,7 +60,7 @@ path never queries the database. Writes reload it and broadcast `:controls_chang
 | Table | Purpose |
 |---|---|
 | `users` | People who signed in with Forgejo: `forgejo_id`, `username`, `email`, `name`, `admin` (from `ADMIN_USERNAMES` at each sign-in), `locale` (`es`/`en`), `time_zone`, `theme`, `session_version` (bumped by "revoke all"). |
-| `connections` | One row per person and system. `secret` is a `cloak_ecto` encrypted map (`{"token"}`, Rocket.Chat `{"token","user_id"}`, Forgejo `{"access_token","refresh_token"}`); `identity` is who the credential belongs to as the upstream reported it; `identity_matches` compares it with the person (email, case-insensitive; username when there's no email); `status` is `ok`, `untested`, `error` or `rejected`; `expires_at` is the Forgejo access token's expiry. |
+| `connections` | One row per person and system. `secret` is a `cloak_ecto` encrypted map (`{"token"}`, Rocket.Chat `{"token","user_id"}`, Forgejo `{"access_token","refresh_token"}`, GitHub `{"access_token"}`); `identity` is who the credential belongs to as the upstream reported it; `identity_matches` compares it with the person (email, case-insensitive; username when there's no email); `status` is `ok`, `untested`, `error` or `rejected`; `expires_at` is the Forgejo access token's expiry. |
 | `personal_tokens` | `sb_...` tokens: SHA-256 `token_hash`, a 7-character `hint`, optional `expires_at`, `last_used_at`, `revoked_at`. |
 | `oauth_clients` | DCR-registered clients and cached CIMD documents (24 h). |
 | `oauth_codes` | Authorization codes (hashed, 60 s, single use; replay revokes the grant). |
@@ -125,6 +130,11 @@ Each implements `Switchboard.Upstream` (label, key link, minimum permissions, fo
 | Argus | `argus_...` token, bearer | `GET /api/v1/me` (Markdown: `Email:`, `Name:`, `Role:`, `Teams:` lines) | Matched by email like the others. Key page: `/settings#api-tokens`. |
 | Outline 1.x | API key, bearer | `POST /api/auth.info` | Key page: `/settings/api-and-access` (1.7 and later; `/settings/api-and-apps` from 0.84 to 1.6). |
 | Rocket.Chat 8 | Personal access token + user id, `X-Auth-Token`/`X-User-Id` | `GET /api/v1/me` | Key page: `/account/tokens`. |
+| GitHub (optional) | OAuth App token (`repo` scope), bearer; linked at `/auth/github`, revoked on disconnect | `GET /user` | Hidden without `GITHUB_CLIENT_ID`/`GITHUB_CLIENT_SECRET`; optional in onboarding. REST API version `2022-11-28`. |
+
+Adapters may implement `enabled?/0` (hidden everywhere when false), `connect_path/0` (linked
+through an OAuth flow, so the Connections page shows Connect instead of a key form) and
+`optional?/0` (not counted as missing on Get started and in the admin view).
 
 `Upstreams.request/3`: `Req` with options from config (`req_options`, so tests use `Req.Test`),
 5 s connect and 10 s receive timeouts, no retries, no redirects, a 2 MB body cap (8 MB for Outline search, which retries oversized results with a smaller limit), and JSON decoded
@@ -223,6 +233,64 @@ contains no live @-mentions (a zero-width space follows every `@`).
   or dotted module name).
 - **Outline:** `documents.search` and `documents.info`; relative document URLs are made absolute;
   `docs_read` pages the Markdown in 8 000-character pages.
+
+## GitHub repositories
+
+Some teams' repositories live on GitHub. `Switchboard.Repos` decides where a `repo` argument
+lives and returns the read client for it; `Switchboard.GitHub` has `Switchboard.Forgejo`'s read
+functions with the same names and answers in the same shapes, so `pr_status`, `ci_failure`,
+`repo_search_prs`, `watch_ci` and the joins render one way.
+
+- **Routing** (`Repos.resolve/2`): `owner/repo` is GitHub when `owner` is in `GITHUB_OWNERS`
+  (case-insensitive) and GitHub is configured, Forgejo otherwise; a URL of either server
+  (repository, pull request, run; the GitHub web or API host) goes by host and keeps the PR or
+  run number; `github:owner/repo` and `forgejo:owner/repo` force one. Stored CI watch targets
+  carry `github:` (a bare one is always Forgejo, so changing `GITHUB_OWNERS` doesn't move
+  existing watches).
+- **Connection:** per person, through Switchboard's OAuth App (`Switchboard.GitHub.Login`,
+  `SwitchboardWeb.GitHubAuthController`): `/auth/github` stores a `state` and a PKCE verifier in
+  the session and redirects to `/login/oauth/authorize` (`scope=repo`); the callback compares
+  the state in constant time (single use), exchanges the code, reads `GET /user` and stores the
+  token encrypted (`Connections.store_github/3`, identity is the person's by construction).
+  Disconnect calls `DELETE /applications/{client_id}/grant` (as the app) before removing the row;
+  if GitHub can't be reached the row is removed anyway and the page links the person's GitHub
+  settings. A token can't be pasted.
+- **Shapes:** search hits (`/search/issues`, `is:pr`, `author:@me`, `review-requested:@me`,
+  `reviewed-by:@me`, `assignee:@me`, `updated:>=`, `repo:`/`user:`) get `repository.full_name`
+  and `pull_request.merged`; reviews map `CHANGES_REQUESTED`/`COMMENTED`/`DISMISSED` onto
+  Forgejo's states (the REST API has no review decision; the per-reviewer summary stands for it);
+  mergeability comes from `mergeable_state` (clean, unstable, behind, dirty, blocked, draft,
+  unknown while GitHub computes it); CI merges check runs (`/commits/{sha}/check-runs`) and legacy
+  commit statuses (`/commits/{sha}/status`) into one combined status; Actions runs and jobs get
+  Forgejo's single `status`, and a run's number is its id (as in the run URL). Everything
+  normalized carries `"host" => "github"`.
+- **CI logs:** `GET /actions/jobs/{id}/logs` answers a redirect to a short-lived download URL,
+  fetched without the token (http(s), no credentials in the URL, 4 MB cap). GitHub logs mark
+  steps with `##[group]Run <command>` and fail with `##[error]Process completed with exit code N.`;
+  `GitHub.failure_tail/2` keeps the failing step's lines (last 60, earlier `##[error]` lines
+  included), strips timestamps and group markers and scrubs secrets as for Forgejo. The step name
+  comes from the jobs API (the failed step), so CI watch notices don't download the log.
+- **Rate limits:** each token has GitHub's own budget (5 000 requests an hour, search 30 a
+  minute), shared with the person's other tools. Every GET sends the stored ETag (a `304` costs
+  nothing) and reuses the cached body (10 minutes, per token). A `403`/`429` with
+  `X-RateLimit-Remaining: 0` or `Retry-After` makes that token fail fast until the reset, without
+  asking GitHub, and the message says when it resets. SAML SSO enforcement (`X-GitHub-SSO`) links
+  the authorization page.
+- **Joins:** `my_work`, `task_status` and the workflow prefetches (`Facts.my_prs`,
+  `review_requests`, `pr_activity`) search both hosts (`Repos.search_all/2`, concurrently) for
+  people who connected GitHub, limited to `GITHUB_OWNERS`. A failing host becomes a note, the
+  other still renders; `FanOut` entries name both systems for the audit row. Task ids are
+  matched in titles and bodies as on Forgejo. `my_work` doesn't match errors against GitHub
+  commits (that still reads Forgejo only), and `release` reads only the releases feed.
+- **Errors:** a Forgejo 404/400/422 for a named repo says it isn't on Forgejo and, when GitHub is
+  configured, to use `github:owner/repo` or ask the admin to add the owner to `GITHUB_OWNERS`; a
+  GitHub 403/404 (or search's 422) for a repo says the organization may need to approve the
+  Switchboard app, with the person's app settings link; a 404 inside a visible repo (a PR, a run)
+  is just "not found". A missing GitHub connection links its row on Connections and suggests the
+  `help` workflow. Generally, a 4xx now reads as "refused the request: something it names
+  doesn't exist or isn't valid", not as an outage.
+- **CI watches** on GitHub are polled with the same backoff (1 to 5 minutes); there is no GitHub
+  webhook, and Forgejo webhook hints only match Forgejo watches.
 
 ## Rocket.Chat reads (milestone 5)
 

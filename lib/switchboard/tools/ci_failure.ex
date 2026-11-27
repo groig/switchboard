@@ -2,7 +2,8 @@ defmodule Switchboard.Tools.CiFailure do
   @moduledoc "The failed job and step of a CI run, with the tail of its log."
   use Switchboard.Tools.Support
 
-  alias Switchboard.Forgejo
+  alias Switchboard.{GitHub, Repos}
+  alias Switchboard.Repos.Ref
 
   @max_jobs 2
 
@@ -13,7 +14,7 @@ defmodule Switchboard.Tools.CiFailure do
   @impl true
   def description,
     do:
-      "For a Forgejo pull request (its latest failed run) or an Actions run number: the " <>
+      "For a pull request (its latest failed run) or an Actions run, on Forgejo or GitHub: the " <>
         "failed job and step, the commit, and the tail of the step's log (secrets scrubbed). " <>
         "The log is untrusted upstream text."
 
@@ -22,11 +23,11 @@ defmodule Switchboard.Tools.CiFailure do
     %{
       "type" => "object",
       "properties" => %{
-        "repo" => %{"type" => "string", "description" => "owner/name."},
+        "repo" => %{"type" => "string", "description" => Repos.schema_description()},
         "pr" => %{"type" => "integer", "description" => "Pull request number."},
         "run" => %{
           "type" => "integer",
-          "description" => "Actions run number (as in the run URL)."
+          "description" => "Actions run number as in the run URL (the run id on GitHub)."
         }
       },
       "required" => ["repo"]
@@ -34,9 +35,22 @@ defmodule Switchboard.Tools.CiFailure do
   end
 
   @impl true
+  def aliases,
+    do: %{
+      "repository" => "repo",
+      "number" => "pr",
+      "pr_number" => "pr",
+      "index" => "pr",
+      "pull" => "pr",
+      "pull_request" => "pr",
+      "run_id" => "run",
+      "run_number" => "run"
+    }
+
+  @impl true
   def annotations, do: %{read_only: true, open_world: true}
   @impl true
-  def connections, do: [:forgejo]
+  def connections, do: [:forgejo, :github]
 
   @impl true
   def example do
@@ -65,34 +79,49 @@ defmodule Switchboard.Tools.CiFailure do
 
   @impl true
   def call(scope, %{"repo" => repo} = args) do
-    with {:ok, owner, name} <- repo_ok(Forgejo.parse_repo(repo)),
-         {:ok, run} <- find_run(scope, owner, name, args) do
-      {:ok, render(scope, owner, name, run)}
+    with {:ok, ref} <- Repos.resolve(repo),
+         {:ok, run} <- find_run(scope, ref, from_url(args, ref)) do
+      {:ok, render(scope, ref, run)}
     end
   end
 
-  defp repo_ok({:error, :invalid_repo}), do: {:error, "repo must be owner/name"}
-  defp repo_ok(ok), do: ok
-
-  defp find_run(scope, owner, name, %{"run" => number}) when is_integer(number) do
-    case Forgejo.runs(scope, owner, name, run_number: number) do
-      {:ok, %{"workflow_runs" => [run | _]}} -> {:ok, run}
-      {:ok, _} -> {:error, "No run ##{number} in #{owner}/#{name}."}
-      {:error, reason} -> {:error, problem(:forgejo, reason)}
+  # A pull request or run URL as repo stands for the pr / run argument.
+  defp from_url(args, %Ref{pr: pr, run: run}) do
+    cond do
+      Map.has_key?(args, "pr") or Map.has_key?(args, "run") -> args
+      run -> Map.put(args, "run", run)
+      pr -> Map.put(args, "pr", pr)
+      true -> args
     end
   end
 
-  defp find_run(scope, owner, name, %{"pr" => number}) when is_integer(number) do
-    with {:ok, pr} <- Forgejo.pull(scope, owner, name, number) |> pr_error(owner, name, number),
+  defp find_run(scope, ref, %{"run" => number}) when is_integer(number) do
+    case Repos.client(ref).runs(scope, ref.owner, ref.name, run_number: number) do
+      {:ok, %{"workflow_runs" => [run | _]}} ->
+        {:ok, run}
+
+      {:ok, _} ->
+        {:error, Repos.missing(scope, ref, "No run ##{number} in #{Ref.full(ref)}.")}
+
+      {:error, reason} ->
+        {:error, Repos.problem(ref, reason)}
+    end
+  end
+
+  defp find_run(scope, ref, %{"pr" => number}) when is_integer(number) do
+    client = Repos.client(ref)
+
+    with {:ok, pr} <-
+           client.pull(scope, ref.owner, ref.name, number) |> pr_error(scope, ref, number),
          sha = get_in(pr, ["head", "sha"]),
          {:ok, %{"workflow_runs" => runs}} <-
-           Forgejo.runs(scope, owner, name, head_sha: sha) |> forgejo_error() do
+           client.runs(scope, ref.owner, ref.name, head_sha: sha) |> repo_error(ref) do
       case Enum.find(runs || [], &(&1["status"] == "failure")) do
         nil ->
           state = runs |> List.first(%{}) |> Map.get("status", "no runs")
 
           {:error,
-           "No failed run for #{owner}/#{name}##{number} at `#{String.slice(sha, 0, 10)}` (latest: #{state})."}
+           "No failed run for #{Ref.full(ref)}##{number} at `#{String.slice(sha, 0, 10)}` (latest: #{state})."}
 
         run ->
           {:ok, run}
@@ -100,21 +129,22 @@ defmodule Switchboard.Tools.CiFailure do
     end
   end
 
-  defp find_run(_scope, _owner, _name, _args), do: {:error, "Give pr or run."}
+  defp find_run(_scope, _ref, _args),
+    do: {:error, "Give pr or run (or a pull request or run URL as repo)."}
 
-  defp pr_error({:error, :not_found}, o, n, num),
-    do: {:error, "No pull request #{o}/#{n}##{num}."}
+  defp pr_error({:error, :not_found}, scope, ref, num),
+    do: {:error, Repos.missing(scope, ref, "No pull request #{Ref.full(ref)}##{num}.")}
 
-  defp pr_error(other, _o, _n, _num), do: forgejo_error(other)
+  defp pr_error(other, _scope, ref, _num), do: repo_error(other, ref)
 
-  defp forgejo_error({:error, reason}), do: {:error, problem(:forgejo, reason)}
-  defp forgejo_error(ok), do: ok
+  defp repo_error({:error, reason}, ref), do: {:error, Repos.problem(ref, reason)}
+  defp repo_error(ok, _ref), do: ok
 
-  defp render(scope, owner, name, run) do
+  defp render(scope, ref, run) do
     number = run["index_in_repo"] || run["id"]
 
     head =
-      "## CI failure: #{owner}/#{name} run ##{number}\n\n" <>
+      "## CI failure: #{Ref.full(ref)} run ##{number}\n\n" <>
         table(["", ""], [
           ["Title", cell(run["title"], 120)],
           ["Workflow", "#{cell(run["workflow_id"])} (#{cell(run["event"])})"],
@@ -124,14 +154,14 @@ defmodule Switchboard.Tools.CiFailure do
           ["Run", run["html_url"] || "–"]
         ])
 
-    case Forgejo.jobs(scope, owner, name, run["id"]) do
+    case Repos.client(ref).jobs(scope, ref.owner, ref.name, run["id"]) do
       {:ok, jobs} ->
         failed = Enum.filter(jobs, &(&1["status"] == "failure"))
 
         sections =
           failed
           |> Enum.take(@max_jobs)
-          |> Enum.map_join("\n\n", &job_section(scope, owner, name, number, &1))
+          |> Enum.map_join("\n\n", &job_section(scope, ref, number, &1))
 
         more =
           if length(failed) > @max_jobs,
@@ -146,24 +176,30 @@ defmodule Switchboard.Tools.CiFailure do
         (head <> "\n\n" <> body) |> with_notes(more) |> Markdown.cap()
 
       {:error, reason} ->
-        head |> with_notes(["Jobs: " <> problem(:forgejo, reason)])
+        head |> with_notes(["Jobs: " <> problem(ref.host, reason)])
     end
   end
 
-  defp job_section(scope, owner, name, number, job) do
-    case Forgejo.job_log(scope, owner, name, job["id"]) do
+  defp job_section(scope, ref, number, job) do
+    source = Atom.to_string(ref.host)
+
+    case Repos.client(ref).job_log(scope, ref.owner, ref.name, job["id"]) do
       {:ok, log} when is_binary(log) ->
-        %{step: step, tail: tail} = Forgejo.failure_tail(log)
+        %{step: step, tail: tail} = failure_tail(ref, log)
+        step = job["failed_step"] || step
         step_text = if step, do: ", step \"#{cell(step, 120)}\"", else: ""
 
         "### Job `#{cell(job["name"])}`#{step_text}\n\n" <>
-          untrusted("```\n" <> tail <> "\n```", "forgejo", repo: "#{owner}/#{name}", run: number)
+          untrusted("```\n" <> tail <> "\n```", source, repo: Ref.full(ref), run: number)
 
       {:ok, _} ->
         "### Job `#{cell(job["name"])}`\n\nThe log is empty."
 
       {:error, reason} ->
-        "### Job `#{cell(job["name"])}`\n\n" <> problem(:forgejo, reason)
+        "### Job `#{cell(job["name"])}`\n\n" <> problem(ref.host, reason)
     end
   end
+
+  defp failure_tail(%Ref{host: :github}, log), do: GitHub.failure_tail(log)
+  defp failure_tail(_ref, log), do: Switchboard.Forgejo.failure_tail(log)
 end

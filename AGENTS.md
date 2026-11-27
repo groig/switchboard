@@ -48,6 +48,17 @@ guidance below.
   policy matrix in `test/switchboard/write_tools_test.exs` (a test fails otherwise). Descriptions
   say to show the exact change and get the user's OK ("confirm first"). Declare `sensitive_args`
   for private text (DMs).
+- **GitHub is read-only too:** call it only through `Switchboard.GitHub` (GET only; the OAuth
+  App's `repo` scope could write, accepted risk in `docs/SECURITY.md`). Only
+  `Switchboard.GitHub.Login` sends anything else (code exchange, grant revocation). Tools take a
+  `repo` and resolve it with `Switchboard.Repos.resolve/2` (`GITHUB_OWNERS`, URL host,
+  `github:`/`forgejo:` prefix), then call `Repos.client(ref)`, which has Forgejo's function names
+  and shapes. Failures on a named repo go through `Repos.problem/2` / `Repos.missing/3`. Joins
+  use `Repos.search_all/2` (GitHub only for people who connected it, configured owners only, a
+  note when it fails). GitHub is optional: with no `GITHUB_CLIENT_ID`/`SECRET` it is hidden.
+- **Argument aliases:** a tool may declare `aliases/0` (`%{"identifier" => "id"}`) for names
+  agents plausibly guess; `Tools.run/3` renames them and audits `_aliases`. Task ids use
+  `Tools.Support.task_aliases/1`.
 - **Plane budget:** people's Plane keys allow about 60 requests a minute, shared with their other
   tools. Plane reads go through `Switchboard.Plane` (cached per key); call `Plane.forget/1` after a
   write (the write helpers do).
@@ -114,7 +125,8 @@ guidance below.
   zones and shifts dates (falling back to UTC for unknown zones).
 - **Tests:** `Req.Test` stub names are `Switchboard.Forgejo` (sign-in), `Switchboard.Upstreams`
   (every upstream read, including Forgejo's API, Rocket.Chat and the releases feed; use
-  `Switchboard.UpstreamStubs.stub/1`) and `Switchboard.OAuth.CIMD`. Guard tests are synchronous
+  `Switchboard.UpstreamStubs.stub/1`; GitHub is `api.github.test`/`github.test` there, with
+  `link_github/1`) and `Switchboard.OAuth.CIMD`. Guard tests are synchronous
   and set their own limits; the test config makes breakers and limits generous for everyone else. `user_fixture/1` stores a Forgejo connection; `stub_forgejo/2` answers
   Forgejo's API for membership re-checks. MCP protocol tests are `async: false`: anubis runs tool
   calls in its own tasks, which need the shared sandbox. Oban runs `testing: :manual`: tests run

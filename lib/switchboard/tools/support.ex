@@ -64,6 +64,16 @@ defmodule Switchboard.Tools.Support do
     markdown <> "\n\n**Notes**\n" <> Enum.map_join(notes, "\n", &("- " <> &1))
   end
 
+  @doc """
+  The names agents use for a task id (`PROJ-123`) when the tool calls it `real`, e.g.
+  `identifier` or `task` for `id` (`Switchboard.Tool.aliases/0`).
+  """
+  def task_aliases(real) do
+    ~w(id identifier task task_id key issue issue_id item work_item)
+    |> List.delete(real)
+    |> Map.new(&{&1, real})
+  end
+
   @doc "Validates a bounded integer argument."
   def int_arg(args, key, default, min, max) do
     case Map.get(args, key, default) do

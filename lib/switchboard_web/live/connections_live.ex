@@ -1,7 +1,9 @@
 defmodule SwitchboardWeb.ConnectionsLive do
   @moduledoc """
   The person's upstream credentials: link a key (tested before it is stored), test it again,
-  replace or remove it. Secrets never reach the socket: the page only sees status and identity.
+  replace or remove it. GitHub is connected through its OAuth flow instead (a Connect button to
+  `/auth/github`) and disconnecting revokes the grant. Secrets never reach the socket: the page
+  only sees status and identity.
   """
   use SwitchboardWeb, :live_view
 
@@ -122,7 +124,12 @@ defmodule SwitchboardWeb.ConnectionsLive do
   attr :scope, :any, required: true
 
   defp system_card(assigns) do
-    assigns = assign(assigns, :system, assigns.mod.system())
+    assigns =
+      assign(assigns,
+        system: assigns.mod.system(),
+        connect_path:
+          if(function_exported?(assigns.mod, :connect_path, 0), do: assigns.mod.connect_path())
+      )
 
     ~H"""
     <section
@@ -168,6 +175,19 @@ defmodule SwitchboardWeb.ConnectionsLive do
               you: @scope.user.email || @scope.user.username
             )}
           </p>
+          <p :if={@system == "github" && @connection} class="mt-1.5 text-sm text-fg-muted">
+            {gettext("Repositories of an organization missing?")}
+            <.link
+              id="github-org-access"
+              href={Switchboard.GitHub.app_settings_url()}
+              target="_blank"
+              rel="noopener noreferrer"
+              class="inline-flex items-center gap-1 font-medium text-accent-fg hover:underline"
+            >
+              {gettext("Request the organization's approval in GitHub")}
+              <.icon name="hero-arrow-top-right-on-square-micro" class="size-3.5" />
+            </.link>
+          </p>
         </div>
       </div>
 
@@ -183,6 +203,24 @@ defmodule SwitchboardWeb.ConnectionsLive do
           >
             {gettext("Test")}
           </.button>
+          <%= if @connect_path do %>
+            <.button id={"reconnect-#{@system}"} size="sm" href={@connect_path}>
+              {gettext("Reconnect")}
+            </.button>
+            <.icon_button
+              id={"remove-#{@system}"}
+              icon="hero-trash-mini"
+              label={gettext("Disconnect")}
+              variant="ghost"
+              phx-click="unlink"
+              phx-value-system={@system}
+              data-confirm={
+                gettext("Disconnect %{system}? Switchboard revokes its access in %{system}.",
+                  system: @mod.label()
+                )
+              }
+            />
+          <% end %>
           <%= if @mod.fields() != [] do %>
             <.button
               id={"replace-#{@system}"}
@@ -205,6 +243,16 @@ defmodule SwitchboardWeb.ConnectionsLive do
             />
           <% end %>
         <% else %>
+          <.button
+            :if={@connect_path}
+            id={"connect-#{@system}"}
+            size="sm"
+            variant="primary"
+            icon="hero-link-mini"
+            href={@connect_path}
+          >
+            {gettext("Connect %{system}", system: @mod.label())}
+          </.button>
           <.button
             :if={@mod.fields() != []}
             id={"link-#{@system}"}
@@ -256,6 +304,7 @@ defmodule SwitchboardWeb.ConnectionsLive do
   def system_icon("argus"), do: "hero-bug-ant"
   def system_icon("outline"), do: "hero-book-open"
   def system_icon("rocketchat"), do: "hero-chat-bubble-left-right"
+  def system_icon("github"), do: "hero-code-bracket"
 
   @impl true
   def handle_event("start_link", %{"system" => system}, socket) do
@@ -306,8 +355,27 @@ defmodule SwitchboardWeb.ConnectionsLive do
   end
 
   def handle_event("unlink", %{"system" => system}, socket) do
-    :ok = Connections.unlink(socket.assigns.current_scope, system)
-    {:noreply, socket |> put_flash(:info, gettext("Key removed.")) |> load()}
+    flash =
+      case Connections.unlink(socket.assigns.current_scope, system) do
+        :ok when system == "github" ->
+          {:info, gettext("GitHub disconnected; Switchboard's access was revoked in GitHub.")}
+
+        :ok ->
+          {:info, gettext("Key removed.")}
+
+        {:ok, :not_revoked} ->
+          {:error,
+           gettext(
+             "Disconnected, but GitHub couldn't be reached to revoke Switchboard's access. Revoke it in your GitHub settings: %{url}",
+             url: Switchboard.GitHub.app_settings_url()
+           )}
+
+        {:error, _} ->
+          {:error, gettext("Couldn't remove it.")}
+      end
+
+    {kind, text} = flash
+    {:noreply, socket |> put_flash(kind, text) |> load()}
   end
 
   @impl true

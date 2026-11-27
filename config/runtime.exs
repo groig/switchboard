@@ -83,6 +83,21 @@ case System.get_env("ROCKETCHAT_ROUTE_BUDGET") do
     end
 end
 
+# GitHub (optional, any environment): an OAuth App per deployment, and the owners whose
+# repositories live on GitHub. Without the client id and secret, GitHub is off: no connection,
+# and `owner/repo` always means Forgejo. GITHUB_URL / GITHUB_API_URL are for GitHub Enterprise.
+github =
+  [
+    client_id: System.get_env("GITHUB_CLIENT_ID"),
+    client_secret: System.get_env("GITHUB_CLIENT_SECRET"),
+    owners: list_env.("GITHUB_OWNERS"),
+    url: System.get_env("GITHUB_URL"),
+    api_url: System.get_env("GITHUB_API_URL")
+  ]
+  |> Enum.reject(fn {_k, v} -> v in [nil, "", []] end)
+
+if github != [], do: config(:switchboard, Switchboard.GitHub, github)
+
 # Upstreams from the environment. In production every one is required (below); in development
 # they override the placeholders in dev.exs. (Config deep-merges keyword lists.)
 if config_env() == :dev do

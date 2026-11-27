@@ -12,7 +12,7 @@ defmodule Switchboard.Workflows.Facts do
   import Switchboard.Tools.Support
   alias Switchboard.Markdown
 
-  alias Switchboard.{Controls, FanOut, Forgejo, Plane, Releases, Upstreams, Watches}
+  alias Switchboard.{Controls, FanOut, Plane, Releases, Repos, Upstreams, Watches}
   alias Switchboard.Tools.{ChatInbox, ForgejoRender, MyWork, WatchSupport}
   alias Switchboard.Watches.Watch
 
@@ -208,12 +208,13 @@ defmodule Switchboard.Workflows.Facts do
 
   defp plane_error(other), do: other
 
-  ## Forgejo
+  ## Pull requests (Forgejo, and GitHub for people who connected it)
 
   @doc """
   The person's pull requests (open, plus merged or closed since `since` when given) with CI and
   reviews, flagged when CI failed or changes were requested. `only_attention: true` keeps the
-  flagged ones.
+  flagged ones. GitHub's (configured owners) are included when the person connected GitHub; a
+  system that fails is a note.
   """
   def my_prs(scope, opts \\ []) do
     params =
@@ -222,7 +223,7 @@ defmodule Switchboard.Workflows.Facts do
         _ -> [state: "open"]
       end
 
-    with {:ok, found} <- Forgejo.search_prs(scope, [created: true, limit: 20] ++ params) do
+    with {:ok, found, notes} <- Repos.search_all(scope, [created: true, limit: 20] ++ params) do
       details =
         found
         |> Enum.reject(&(&1["state"] == "closed" and not merged?(&1)))
@@ -236,7 +237,7 @@ defmodule Switchboard.Workflows.Facts do
       shown = if opts[:only_attention], do: Enum.filter(details, &(&1.flags != [])), else: details
 
       if shown == [] do
-        {:ok, opts[:empty] || "No pull requests of yours need attention."}
+        {:ok, opts[:empty] || "No pull requests of yours need attention.", notes}
       else
         rows =
           Enum.map(shown, fn d ->
@@ -253,27 +254,36 @@ defmodule Switchboard.Workflows.Facts do
         {:ok,
          untrusted(
            table(["PR", "Title", "State", "CI", "Reviews", "Flags"], rows),
-           "forgejo"
-         )}
+           source(found)
+         ), notes}
       end
     end
     |> forgejo_error()
   end
 
+  # The untrusted block's source: forgejo, github, or both.
+  defp source(items) do
+    case items |> Enum.map(&(&1["host"] || "forgejo")) |> Enum.uniq() |> Enum.sort() do
+      [one] -> one
+      [] -> "forgejo"
+      _ -> "forgejo github"
+    end
+  end
+
   defp merged?(issue), do: get_in(issue, ["pull_request", "merged"]) == true
 
   defp pr_detail(scope, issue) do
-    with {:ok, owner, repo} <-
-           Forgejo.parse_repo(get_in(issue, ["repository", "full_name"]) || ""),
-         {:ok, pr} <- Forgejo.pull(scope, owner, repo, issue["number"]) do
+    with {:ok, ref} <- Repos.ref_for(issue),
+         client = Repos.client(ref),
+         {:ok, pr} <- client.pull(scope, ref.owner, ref.name, issue["number"]) do
       status =
-        case Forgejo.status(scope, owner, repo, get_in(pr, ["head", "sha"])) do
+        case client.status(scope, ref.owner, ref.name, get_in(pr, ["head", "sha"])) do
           {:ok, %{"statuses" => [_ | _]} = s} -> s["state"]
           _ -> nil
         end
 
       reviews =
-        case Forgejo.reviews(scope, owner, repo, pr["number"]) do
+        case client.reviews(scope, ref.owner, ref.name, pr["number"]) do
           {:ok, list} -> list
           _ -> []
         end
@@ -301,10 +311,10 @@ defmodule Switchboard.Workflows.Facts do
 
   @doc "Open pull requests waiting for the person's review, oldest update first."
   def review_requests(scope) do
-    with {:ok, found} <-
-           Forgejo.search_prs(scope, review_requested: true, state: "open", limit: 20) do
+    with {:ok, found, notes} <-
+           Repos.search_all(scope, review_requested: true, state: "open", limit: 20) do
       if found == [] do
-        {:ok, "No pull request is waiting for your review."}
+        {:ok, "No pull request is waiting for your review.", notes}
       else
         rows =
           found
@@ -322,7 +332,8 @@ defmodule Switchboard.Workflows.Facts do
         more =
           if length(found) > 10, do: ["#{length(found) - 10} more review requests."], else: []
 
-        {:ok, untrusted(table(["PR", "Title", "Author", "Updated"], rows), "forgejo"), more}
+        {:ok, untrusted(table(["PR", "Title", "Author", "Updated"], rows), source(found)),
+         notes ++ more}
       end
     end
     |> forgejo_error()
@@ -332,11 +343,12 @@ defmodule Switchboard.Workflows.Facts do
   def pr_activity(scope, since) do
     iso = DateTime.to_iso8601(since)
 
-    mine = Forgejo.search_prs(scope, created: true, state: "all", since: iso, limit: 20)
-    reviewed = Forgejo.search_prs(scope, reviewed: true, state: "all", since: iso, limit: 20)
+    mine = Repos.search_all(scope, created: true, state: "all", since: iso, limit: 20)
+    reviewed = Repos.search_all(scope, reviewed: true, state: "all", since: iso, limit: 20)
 
-    with {:ok, mine} <- mine, {:ok, reviewed} <- reviewed do
-      own_ids = Enum.map(mine, & &1["id"])
+    with {:ok, mine, notes} <- mine, {:ok, reviewed, more_notes} <- reviewed do
+      own_ids = MapSet.new(mine, &Repos.key/1)
+      notes = Enum.uniq(notes ++ more_notes)
 
       rows =
         Enum.map(mine, fn pr ->
@@ -350,17 +362,17 @@ defmodule Switchboard.Workflows.Facts do
           [pr_link(pr), cell(pr["title"], 70), what, pr_state(pr)]
         end) ++
           for pr <- reviewed,
-              pr["id"] not in own_ids,
+              not MapSet.member?(own_ids, Repos.key(pr)),
               do: [pr_link(pr), cell(pr["title"], 70), "reviewed", pr_state(pr)]
 
       if rows == [],
-        do: {:ok, "No pull request activity of yours since then."},
+        do: {:ok, "No pull request activity of yours since then.", notes},
         else:
           {:ok,
            untrusted(
              table(["PR", "Title", "What you did", "State"], Enum.take(rows, 15)),
-             "forgejo"
-           )}
+             source(mine ++ reviewed)
+           ), notes}
     end
     |> forgejo_error()
   end
@@ -389,6 +401,7 @@ defmodule Switchboard.Workflows.Facts do
     "[#{cell(repo, 60)}##{pr["number"]}](#{pr["html_url"]})"
   end
 
+  # Both systems failed: already a line.
   defp forgejo_error({:error, reason}) when not is_binary(reason),
     do: {:error, problem(:forgejo, reason)}
 

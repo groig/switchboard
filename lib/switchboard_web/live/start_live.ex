@@ -61,11 +61,12 @@ defmodule SwitchboardWeb.StartLive do
     agent = Onboarding.agent(scope.user)
     prompts = Onboarding.prompts()
     tried_count = Enum.count(prompts, &Onboarding.done?(&1, tried))
-    linked = Enum.count(accounts, &(&1.status == :linked))
+    required = Enum.reject(accounts, & &1.optional)
+    linked = Enum.count(required, &(&1.status == :linked))
 
     done = %{
       agent: agent != nil,
-      accounts: linked == length(accounts),
+      accounts: linked == length(required),
       prompts: tried_count >= @tried_goal,
       commands: Enum.any?(tried, &String.starts_with?(&1, "workflow:"))
     }
@@ -168,7 +169,7 @@ defmodule SwitchboardWeb.StartLive do
             <span id="accounts-count" class="text-sm text-fg-muted tabular-nums">
               {gettext("%{linked} of %{total} linked",
                 linked: @linked,
-                total: length(@accounts)
+                total: Enum.count(@accounts, &(!&1.optional))
               )}
             </span>
           </:status>
@@ -383,6 +384,9 @@ defmodule SwitchboardWeb.StartLive do
               <% :missing -> %>
                 <.badge>{gettext("Not linked")}</.badge>
             <% end %>
+            <.badge :if={@account.optional} id={"optional-#{@system}"}>
+              {gettext("Optional")}
+            </.badge>
           </div>
           <p class="mt-0.5 text-sm text-fg-muted">
             {Gettext.gettext(SwitchboardWeb.Gettext, Onboarding.unlocks(@system))}

@@ -155,9 +155,24 @@ defmodule Switchboard.Tools.Doc do
 
     Arguments:
 
-    #{arguments(mod.input_schema())}
+    #{arguments(mod.input_schema())}#{aliases(mod)}
     #{example(mod)}
     """
+  end
+
+  defp aliases(mod) do
+    case Switchboard.Tools.aliases(mod) |> Enum.group_by(&elem(&1, 1), &elem(&1, 0)) do
+      groups when map_size(groups) == 0 ->
+        ""
+
+      groups ->
+        "\nAliases (renamed when the real name is absent): " <>
+          (groups
+           |> Enum.sort()
+           |> Enum.map_join("; ", fn {real, names} ->
+             Enum.map_join(Enum.sort(names), ", ", &"`#{&1}`") <> " → `#{real}`"
+           end)) <> ".\n"
+    end
   end
 
   defp annotations(mod) do

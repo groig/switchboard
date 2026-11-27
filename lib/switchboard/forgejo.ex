@@ -49,6 +49,8 @@ defmodule Switchboard.Forgejo do
     get(scope, "/repos/issues/search", params)
   end
 
+  def repo(scope, owner, name), do: get(scope, "/repos/#{owner}/#{name}")
+
   def pull(scope, owner, repo, number), do: get(scope, "/repos/#{owner}/#{repo}/pulls/#{number}")
 
   def reviews(scope, owner, repo, number),

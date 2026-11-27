@@ -66,6 +66,10 @@ defmodule SwitchboardWeb.Router do
   scope "/", SwitchboardWeb do
     pipe_through [:browser, :require_authenticated_user]
 
+    # Connect GitHub (OAuth App): the authorize redirect and its callback.
+    get "/auth/github", GitHubAuthController, :connect
+    get "/auth/github/callback", GitHubAuthController, :callback
+
     live_session :app,
       on_mount: [
         {SwitchboardWeb.UserAuth, :require_authenticated},

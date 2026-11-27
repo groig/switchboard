@@ -36,9 +36,10 @@ defmodule Switchboard.ToolsTest do
   end
 
   test "argument errors are refused and audited", %{scope: scope} do
-    assert {:error, "Missing arguments: text"} = Tools.run(scope, "test_note", %{})
+    assert {:error, "Missing arguments: text. test_note takes:" <> _} =
+             Tools.run(scope, "test_note", %{})
 
-    assert {:error, "Unknown arguments: x"} =
+    assert {:error, "Unknown arguments: x. " <> _} =
              Tools.run(scope, "test_note", %{"text" => "a", "x" => 1})
 
     assert %{outcome: "error"} = last_event(scope.user)

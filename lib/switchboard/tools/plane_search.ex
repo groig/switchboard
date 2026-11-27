@@ -35,6 +35,9 @@ defmodule Switchboard.Tools.PlaneSearch do
   def connections, do: [:plane]
 
   @impl true
+  def aliases, do: %{"q" => "query", "text" => "query", "search" => "query"}
+
+  @impl true
   def example do
     %{
       args: %{"query" => "invoice export"},

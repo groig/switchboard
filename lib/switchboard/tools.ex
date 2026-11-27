@@ -77,7 +77,8 @@ defmodule Switchboard.Tools do
     1. the tool exists and its kill switch is on;
     2. read-only mode refuses tools that aren't read-only;
     3. the per-person, per-tool rate limit (token bucket);
-    4. argument validation against the input schema;
+    4. argument aliases (`aliases/0`) renamed to the real names, then validation against the
+       input schema; a refusal lists the expected arguments and an example call;
     5. the call itself, timed, with a `[:switchboard, :tool, :call]` telemetry event;
     6. one audit row whatever the outcome.
 
@@ -93,13 +94,14 @@ defmodule Switchboard.Tools do
   def run(%Scope{} = scope, name, args) when is_map(args) do
     started = System.monotonic_time()
     Process.delete(:switchboard_audited)
+    {args, aliased} = apply_aliases(fetch(name), args)
 
     {outcome, result, mod} =
       with {:ok, mod} <- fetch_or_unknown(name),
            :ok <- check_enabled(mod),
            :ok <- check_read_only(mod),
            :ok <- check_rate(scope, mod),
-           :ok <- validate_args(mod.input_schema(), args) |> tag(:error, mod) do
+           :ok <- validate_args(mod, args) |> tag(:error, mod) do
         Process.put(:switchboard_upstreams, [])
 
         case safe_call(mod, scope, args) do
@@ -140,7 +142,9 @@ defmodule Switchboard.Tools do
       end
 
     unless Process.delete(:switchboard_audited) do
-      Audit.log_tool(scope, name, args,
+      audit_args = if aliased == %{}, do: args, else: Map.put(args, "_aliases", aliased)
+
+      Audit.log_tool(scope, name, audit_args,
         outcome: outcome,
         error: error,
         duration_ms: duration_ms,
@@ -220,24 +224,119 @@ defmodule Switchboard.Tools do
     if function_exported?(mod, :sensitive_args, 0), do: mod.sensitive_args(), else: []
   end
 
-  # Required keys and primitive types. Tools validate their own semantics.
-  defp validate_args(%{"properties" => props} = schema, args) do
-    missing = Enum.reject(Map.get(schema, "required", []), &Map.has_key?(args, &1))
-    unknown = Map.keys(args) -- Map.keys(props)
+  @doc "A tool's argument aliases (`%{alias => real}`), or none."
+  def aliases(mod) do
+    if function_exported?(mod, :aliases, 0), do: mod.aliases(), else: %{}
+  end
 
-    bad_types =
-      for {key, value} <- args, spec = props[key], not type_ok?(spec, value), do: key
+  # Renames aliases whose real argument is absent; returns the args and the aliases used.
+  defp apply_aliases({:ok, mod}, args) do
+    Enum.reduce(aliases(mod), {args, %{}}, fn {alias, real}, {args, used} ->
+      if Map.has_key?(args, alias) and not Map.has_key?(args, real) do
+        {args |> Map.delete(alias) |> Map.put(real, args[alias]), Map.put(used, alias, real)}
+      else
+        {args, used}
+      end
+    end)
+  end
 
-    cond do
-      missing != [] -> {:error, "Missing arguments: #{Enum.join(missing, ", ")}"}
-      unknown != [] -> {:error, "Unknown arguments: #{Enum.join(unknown, ", ")}"}
-      bad_types != [] -> {:error, "Invalid arguments: #{Enum.join(bad_types, ", ")}"}
-      true -> :ok
+  defp apply_aliases(:error, args), do: {args, %{}}
+
+  # Required keys and primitive types. Tools validate their own semantics. A refusal says what
+  # the tool takes, so an agent can fix the call in one retry.
+  defp validate_args(mod, args) do
+    case mod.input_schema() do
+      %{"properties" => props} = schema when map_size(props) > 0 ->
+        missing = Enum.reject(Map.get(schema, "required", []), &Map.has_key?(args, &1))
+        unknown = Map.keys(args) -- Map.keys(props)
+
+        bad_types =
+          for {key, value} <- args, spec = props[key], not type_ok?(spec, value), do: key
+
+        problems =
+          Enum.reject(
+            [
+              missing != [] && "Missing arguments: #{Enum.join(missing, ", ")}.",
+              unknown != [] && "Unknown arguments: #{Enum.join(unknown, ", ")}."
+            ],
+            &(&1 == false)
+          )
+
+        cond do
+          problems != [] ->
+            {:error, Enum.join(problems, " ") <> " " <> usage(mod)}
+
+          bad_types != [] ->
+            expected = Enum.map_join(bad_types, ", ", &"#{&1} (#{type_name(props[&1])})")
+            {:error, "Invalid arguments: #{expected}. " <> usage(mod)}
+
+          true ->
+            :ok
+        end
+
+      _ when map_size(args) == 0 ->
+        :ok
+
+      _ ->
+        {:error, "#{mod.name()} takes no arguments; call it with {}."}
     end
   end
 
-  defp validate_args(_schema, args) when map_size(args) == 0, do: :ok
-  defp validate_args(_schema, _args), do: {:error, "This tool takes no arguments"}
+  @doc """
+  What a tool takes, for refusals: each argument with its type and one-line description, the
+  aliases it accepts, and an example call.
+  """
+  def usage(mod) do
+    schema = mod.input_schema()
+    props = schema["properties"] || %{}
+    required = schema["required"] || []
+
+    lines =
+      props
+      |> Enum.sort_by(fn {k, _} -> {k not in required, k} end)
+      |> Enum.map_join("\n", fn {name, spec} ->
+        need = if name in required, do: "required", else: "optional"
+        desc = spec["description"] |> to_string() |> String.split("\n") |> hd()
+        "- `#{name}` (#{need}, #{type_name(spec)})" <> if(desc == "", do: "", else: ": " <> desc)
+      end)
+
+    aliases =
+      case aliases(mod) |> Enum.group_by(&elem(&1, 1), &elem(&1, 0)) |> Enum.sort() do
+        [] ->
+          ""
+
+        groups ->
+          "\nAlso accepted: " <>
+            Enum.map_join(groups, "; ", fn {real, names} ->
+              Enum.map_join(Enum.sort(names), ", ", &"`#{&1}`") <> " for `#{real}`"
+            end) <> "."
+      end
+
+    "#{mod.name()} takes:\n#{lines}#{aliases}\nExample: #{Jason.encode!(example_args(mod))}"
+  end
+
+  defp example_args(mod) do
+    if function_exported?(mod, :example, 0) do
+      mod.example().args
+    else
+      schema = mod.input_schema()
+
+      for name <- schema["required"] || [], into: %{} do
+        {name, placeholder(schema["properties"][name])}
+      end
+    end
+  end
+
+  defp placeholder(%{"enum" => [first | _]}), do: first
+  defp placeholder(%{"type" => "integer"}), do: 1
+  defp placeholder(%{"type" => "boolean"}), do: true
+  defp placeholder(%{"type" => [type | _]}), do: placeholder(%{"type" => type})
+  defp placeholder(_), do: "..."
+
+  defp type_name(%{"enum" => values}), do: "one of " <> Enum.join(values, ", ")
+  defp type_name(%{"type" => types}) when is_list(types), do: Enum.join(types, " or ")
+  defp type_name(%{"type" => type}), do: type
+  defp type_name(_), do: "any"
 
   defp type_ok?(%{"enum" => values}, v), do: v in values
 

@@ -30,7 +30,7 @@ defmodule Switchboard.Workflows.Inbox do
   @impl true
   def arguments, do: []
   @impl true
-  def connections, do: [:rocketchat, :forgejo, :plane]
+  def connections, do: [:rocketchat, :forgejo, :github, :plane]
   @impl true
   def fetches,
     do: [
@@ -57,7 +57,7 @@ defmodule Switchboard.Workflows.Inbox do
            fn ->
              Facts.tool(scope, ChatInbox, %{"include" => ["dms", "mentions", "threads"]})
            end},
-          {:reviews, :forgejo, fn -> Facts.review_requests(scope) end},
+          {:reviews, Switchboard.Repos.systems(scope), fn -> Facts.review_requests(scope) end},
           {:plane, :plane,
            fn ->
              Facts.plane_recent(

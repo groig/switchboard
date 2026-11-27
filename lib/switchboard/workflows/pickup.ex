@@ -34,7 +34,7 @@ defmodule Switchboard.Workflows.Pickup do
     do: [%{name: "task", description: "Plane work item, e.g. PROJ-123.", required: true}]
 
   @impl true
-  def connections, do: [:plane, :forgejo, :outline, :argus, :releases]
+  def connections, do: [:plane, :forgejo, :github, :outline, :argus, :releases]
   @impl true
   def fetches,
     do: [
@@ -66,7 +66,8 @@ defmodule Switchboard.Workflows.Pickup do
         Facts.gather(
           [
             {:item, :plane, fn -> Facts.tool(scope, PlaneGetItem, %{"id" => id}) end},
-            {:status, :forgejo, fn -> Facts.tool(scope, TaskStatus, %{"id" => id}) end},
+            {:status, Switchboard.Repos.systems(scope),
+             fn -> Facts.tool(scope, TaskStatus, %{"id" => id}) end},
             {:wiki, :outline,
              fn ->
                Facts.tool(scope, DocsSearch, %{"query" => search_text(title || id), "limit" => 5})

@@ -44,6 +44,9 @@ defmodule Switchboard.Tools.WatchTask do
   def connections, do: [:plane]
 
   @impl true
+  def aliases, do: Switchboard.Tools.Support.task_aliases("id")
+
+  @impl true
   def example do
     %{
       args: %{"id" => "DEMO-12", "until" => "released", "hours" => 72},

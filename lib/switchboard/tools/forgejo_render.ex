@@ -47,6 +47,29 @@ defmodule Switchboard.Tools.ForgejoRender do
   def check_state(nil), do: "–"
   def check_state(s), do: s
 
+  @doc """
+  Whether a PR can be merged. GitHub explains why not (`mergeable_state`); it computes
+  mergeability in the background, so a fresh PR may say "unknown".
+  """
+  def mergeable(%{"host" => "github", "merged" => true}), do: "already merged"
+
+  def mergeable(%{"host" => "github"} = pr) do
+    case pr["mergeable_state"] do
+      "clean" -> "yes"
+      "has_hooks" -> "yes"
+      "unstable" -> "yes, but some checks are failing or pending"
+      "behind" -> "yes, but the branch is behind the base branch"
+      "dirty" -> "no (conflicts)"
+      "blocked" -> "no (blocked: required reviews or checks missing)"
+      "draft" -> "no (draft)"
+      _ -> if pr["mergeable"] == false, do: "no (conflicts or blocked)", else: unknown()
+    end
+  end
+
+  def mergeable(pr), do: if(pr["mergeable"], do: "yes", else: "no (conflicts or blocked)")
+
+  defp unknown, do: "unknown (GitHub is still computing it; ask again in a moment)"
+
   @doc "The short state of a PR."
   def pr_state(pr) do
     cond do

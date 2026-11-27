@@ -40,7 +40,7 @@ defmodule Switchboard.Workflows.Handoff do
     ]
 
   @impl true
-  def connections, do: [:plane, :forgejo, :releases]
+  def connections, do: [:plane, :forgejo, :github, :releases]
   @impl true
   def fetches,
     do: [
@@ -67,7 +67,8 @@ defmodule Switchboard.Workflows.Handoff do
         Facts.gather(
           [
             {:item, :plane, fn -> Facts.tool(scope, PlaneGetItem, %{"id" => id}) end},
-            {:status, :forgejo, fn -> Facts.tool(scope, TaskStatus, %{"id" => id}) end},
+            {:status, Switchboard.Repos.systems(scope),
+             fn -> Facts.tool(scope, TaskStatus, %{"id" => id}) end},
             {:states, :plane, fn -> states(scope, id) end}
           ],
           @budget

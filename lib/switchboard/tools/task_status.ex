@@ -5,7 +5,7 @@ defmodule Switchboard.Tools.TaskStatus do
   """
   use Switchboard.Tools.Support
 
-  alias Switchboard.{FanOut, Forgejo, Plane, Releases}
+  alias Switchboard.{FanOut, Plane, Releases, Repos}
   alias Switchboard.Tools.{ForgejoRender, ReleaseRender}
 
   @max_prs 4
@@ -18,7 +18,8 @@ defmodule Switchboard.Tools.TaskStatus do
   def description,
     do:
       "The whole story of a work item (e.g. PROJ-123): its Plane state, the pull requests " <>
-        "and commits that mention it with their CI status, the production release that shipped " <>
+        "(Forgejo, and GitHub when you connected it) and commits that mention it with their CI " <>
+        "status, the production release that shipped " <>
         "it (or \"not in production yet\"), and the Argus errors after that release. Systems " <>
         "that are not connected or not answering are skipped with a note."
 
@@ -34,9 +35,12 @@ defmodule Switchboard.Tools.TaskStatus do
   end
 
   @impl true
+  def aliases, do: Switchboard.Tools.Support.task_aliases("id")
+
+  @impl true
   def annotations, do: %{read_only: true, open_world: true}
   @impl true
-  def connections, do: [:plane, :forgejo]
+  def connections, do: [:plane, :forgejo, :github]
 
   @impl true
   def example do
@@ -79,7 +83,7 @@ defmodule Switchboard.Tools.TaskStatus do
         FanOut.run(
           [
             {:plane, :plane, fn -> plane(scope, id) end},
-            {:prs, :forgejo, fn -> prs(scope, id) end},
+            {:prs, Repos.systems(scope), fn -> prs(scope, id) end},
             {:releases, :releases, fn -> Releases.list(limit: 200) end}
           ],
           timeout: 9_000
@@ -97,44 +101,54 @@ defmodule Switchboard.Tools.TaskStatus do
     end
   end
 
-  # PRs whose title or body names the task, newest first, each with CI and the commits naming it.
+  # PRs whose title, body or branch names the task (Forgejo, and GitHub for people who connected
+  # it), newest first, each with CI and the commits naming it. A failing system is a note.
   defp prs(scope, id) do
-    with {:ok, found} <- Forgejo.search_prs(scope, q: id, state: "all", limit: 20) do
+    with {:ok, found, notes} <- Repos.search_all(scope, q: id, state: "all", limit: 20) do
       pattern = ~r/\b#{Regex.escape(id)}\b/i
 
       found
-      |> Enum.filter(&((&1["title"] || "") =~ pattern or (&1["body"] || "") =~ pattern))
+      |> Enum.filter(&names_task?(&1, pattern))
       |> Enum.take(@max_prs)
       |> Task.async_stream(&pr_detail(scope, &1, pattern), timeout: 8_000, on_timeout: :kill_task)
       |> Enum.flat_map(fn
         {:ok, detail} -> [detail]
         _ -> []
       end)
-      |> then(&{:ok, &1})
+      |> then(&{:ok, &1, notes})
     end
+  end
+
+  defp names_task?(pr, pattern) do
+    Enum.any?(
+      [pr["title"], pr["body"], get_in(pr, ["head", "ref"])],
+      &(is_binary(&1) and &1 =~ pattern)
+    )
   end
 
   defp pr_detail(scope, issue, pattern) do
     full = get_in(issue, ["repository", "full_name"]) || ""
-    {:ok, owner, repo} = Forgejo.parse_repo(full)
+    {:ok, ref} = Repos.ref_for(issue)
+    client = Repos.client(ref)
+    {owner, repo} = {ref.owner, ref.name}
 
-    with {:ok, pr} <- Forgejo.pull(scope, owner, repo, issue["number"]) do
+    with {:ok, pr} <- client.pull(scope, owner, repo, issue["number"]) do
       sha = get_in(pr, ["head", "sha"])
 
       status =
-        case Forgejo.status(scope, owner, repo, sha) do
+        case client.status(scope, owner, repo, sha) do
           {:ok, s} -> ForgejoRender.check_state(s["state"])
           _ -> "–"
         end
 
       reviews =
-        case Forgejo.reviews(scope, owner, repo, pr["number"]) do
+        case client.reviews(scope, owner, repo, pr["number"]) do
           {:ok, r} -> ForgejoRender.reviews_summary(r, pr["requested_reviewers"])
           _ -> "–"
         end
 
       commits =
-        case Forgejo.pull_commits(scope, owner, repo, pr["number"]) do
+        case client.pull_commits(scope, owner, repo, pr["number"]) do
           {:ok, list} ->
             for c <- list, (get_in(c, ["commit", "message"]) || "") =~ pattern, do: c["sha"]
 
@@ -182,9 +196,9 @@ defmodule Switchboard.Tools.TaskStatus do
 
   defp plane_section(id, {:error, reason}), do: {"## #{id}", [problem(:plane, reason)]}
 
-  defp pr_section({:ok, []}), do: {"No pull request mentions it.", []}
+  defp pr_section({:ok, [], notes}), do: {"No pull request mentions it.", notes}
 
-  defp pr_section({:ok, prs}) do
+  defp pr_section({:ok, prs, notes}) do
     rows =
       Enum.map(prs, fn %{repo: repo, pr: pr, ci: ci, reviews: reviews} ->
         [
@@ -205,9 +219,10 @@ defmodule Switchboard.Tools.TaskStatus do
         do: "",
         else: "\n\nCommits naming it: " <> Enum.join(Enum.uniq(commits), ", ")
 
-    {table(["PR", "State", "CI", "Reviews"], rows) <> commits_md, []}
+    {table(["PR", "State", "CI", "Reviews"], rows) <> commits_md, notes}
   end
 
+  defp pr_section({:error, line}) when is_binary(line), do: {"–", [line]}
   defp pr_section({:error, reason}), do: {"–", [problem(:forgejo, reason)]}
 
   defp release_section(scope, id, {:ok, releases}) do

@@ -220,16 +220,25 @@ defmodule Switchboard.Onboarding do
   ## Accounts
 
   @doc """
-  One entry per system, in display order: `%{system, label, status, connection}` where `status`
-  is `:linked` (usable), `:missing` or `:error` (the key was rejected, or belongs to someone
-  else). A key stored untested still counts as linked: tools use it.
+  One entry per system, in display order: `%{system, label, status, connection, optional}`
+  where `status` is `:linked` (usable), `:missing` or `:error` (the key was rejected, or belongs
+  to someone else). A key stored untested still counts as linked: tools use it. `optional`
+  systems (GitHub: only for repositories that live there) don't count as missing for "every
+  account linked".
   """
   def accounts(%Scope{} = scope) do
     connections = Connections.list(scope)
 
     for mod <- Upstreams.all() do
       conn = connections[mod.system()]
-      %{system: mod.system(), label: mod.label(), status: status(conn), connection: conn}
+
+      %{
+        system: mod.system(),
+        label: mod.label(),
+        status: status(conn),
+        connection: conn,
+        optional: function_exported?(mod, :optional?, 0) and mod.optional?()
+      }
     end
   end
 
@@ -262,12 +271,16 @@ defmodule Switchboard.Onboarding do
   def unlocks("outline"), do: gettext_noop("wiki search and drafts")
   def unlocks("rocketchat"), do: gettext_noop("your DMs and mentions, and messages you approve")
 
+  def unlocks("github"),
+    do: gettext_noop("pull requests, checks and Actions logs of repositories on GitHub")
+
   @systems %{
     "forgejo" => :forgejo,
     "plane" => :plane,
     "argus" => :argus,
     "outline" => :outline,
-    "rocketchat" => :rocketchat
+    "rocketchat" => :rocketchat,
+    "github" => :github
   }
 
   defp system_atom(system), do: Map.fetch!(@systems, system)
@@ -364,7 +377,9 @@ defmodule Switchboard.Onboarding do
 
   @doc """
   Every person's progress, for the admin Onboarding view: `%{user, agent, accounts_linked,
-  prompts_tried, last_active}`, most recently active first. Four queries, whatever the number of
+  optional_linked, prompts_tried, last_active}`, most recently active first. `accounts_*`
+  count the systems everyone needs; `optional_linked` lists the optional ones (GitHub) they
+  linked. Four queries, whatever the number of
   people.
   """
   def overview do
@@ -407,16 +422,23 @@ defmodule Switchboard.Onboarding do
       |> Repo.all()
       |> Enum.group_by(&elem(&1, 0), &elem(&1, 1))
 
-    total = length(Upstreams.all())
+    {optional, required} =
+      Upstreams.all()
+      |> Enum.split_with(&(function_exported?(&1, :optional?, 0) and &1.optional?()))
+      |> then(fn {o, r} -> {Enum.map(o, & &1.system()), Enum.map(r, & &1.system())} end)
+
+    total = length(required)
 
     users
     |> Enum.map(fn user ->
       user_tried = MapSet.new(Map.get(tried, user.id, []))
 
-      ok =
-        for {_, _system, status, matches} <- Map.get(linked, user.id, []),
+      usable =
+        for {_, system, status, matches} <- Map.get(linked, user.id, []),
             status(%{status: status, identity_matches: matches}) == :linked,
-            do: 1
+            do: system
+
+      ok = Enum.filter(usable, &(&1 in required))
 
       %{
         user: user,
@@ -424,6 +446,7 @@ defmodule Switchboard.Onboarding do
         activated: Enum.any?(user_tried),
         accounts_linked: length(ok),
         accounts_total: total,
+        optional_linked: Enum.filter(optional, &(&1 in usable)),
         prompts_tried: Enum.count(@prompts, &done?(&1, user_tried)),
         prompts_total: length(@prompts),
         last_active: last_active[user.id]

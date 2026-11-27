@@ -1,6 +1,9 @@
 defmodule Switchboard.Watches.CI do
   @moduledoc """
-  What a CI watch sees, always through `Switchboard.Forgejo` (GET only) with the owner's token.
+  What a CI watch sees, through `Switchboard.Forgejo` or `Switchboard.GitHub` (both GET only)
+  with the owner's own token. A GitHub target's repo is stored as `github:owner/name`; a bare
+  `owner/name` is Forgejo (watches from before GitHub, and Forgejo ones), whatever
+  `GITHUB_OWNERS` says later. GitHub runs are polled; only Forgejo has the webhook hint.
 
   A watch follows a pull request (its head commit), a branch (its head commit) or one Actions run
   (by number). For a commit, every run of every workflow for it counts: the watch is done when
@@ -8,7 +11,8 @@ defmodule Switchboard.Watches.CI do
   result is `failure` if any failed. With `next_run`, only runs newer than the newest run when the
   watch was created count (the run that a push is about to start).
   """
-  alias Switchboard.Forgejo
+  alias Switchboard.{Forgejo, GitHub, Repos}
+  alias Switchboard.Repos.Ref
 
   @done ~w(success failure cancelled skipped)
   @max_failed_runs 2
@@ -18,31 +22,36 @@ defmodule Switchboard.Watches.CI do
   The creation check: the repo is visible to the person, the target exists. Returns
   `{:ok, target, state}` or `{:error, reason}`.
   """
-  def prepare(scope, owner, name, kind, value, next_run?) do
-    target = %{"repo" => "#{owner}/#{name}", kind => value}
+  def prepare(scope, %Ref{} = ref, kind, value, next_run?) do
+    target = %{"repo" => Ref.stored(ref), kind => value}
+    client = Repos.client(ref)
 
-    with {:ok, _repo} <- Forgejo.get(scope, "/repos/#{owner}/#{name}"),
-         {:ok, _} <- exists(scope, owner, name, kind, value),
-         {:ok, baseline} <- baseline(scope, owner, name, next_run?) do
+    with {:ok, _repo} <- client.repo(scope, ref.owner, ref.name) |> repo_level(),
+         {:ok, _} <- exists(client, scope, ref, kind, value),
+         {:ok, baseline} <- baseline(client, scope, ref, next_run?) do
       {:ok, target, %{"baseline" => baseline, "result" => nil}}
     end
   end
 
-  defp exists(scope, owner, name, "pr", n), do: Forgejo.pull(scope, owner, name, n)
-  defp exists(scope, owner, name, "branch", b), do: Forgejo.branch(scope, owner, name, b)
+  # The repository itself missing is reported as such (`{:repo, reason}`), not as a missing PR.
+  defp repo_level({:error, reason}), do: {:error, {:repo, reason}}
+  defp repo_level(ok), do: ok
 
-  defp exists(scope, owner, name, "run", n) do
-    case Forgejo.runs(scope, owner, name, run_number: n) do
+  defp exists(client, scope, ref, "pr", n), do: client.pull(scope, ref.owner, ref.name, n)
+  defp exists(client, scope, ref, "branch", b), do: client.branch(scope, ref.owner, ref.name, b)
+
+  defp exists(client, scope, ref, "run", n) do
+    case client.runs(scope, ref.owner, ref.name, run_number: n) do
       {:ok, %{"workflow_runs" => [_ | _]}} -> {:ok, :run}
       {:ok, _} -> {:error, :not_found}
       error -> error
     end
   end
 
-  defp baseline(_scope, _owner, _name, false), do: {:ok, nil}
+  defp baseline(_client, _scope, _ref, false), do: {:ok, nil}
 
-  defp baseline(scope, owner, name, true) do
-    case Forgejo.runs(scope, owner, name, limit: 1) do
+  defp baseline(client, scope, ref, true) do
+    case client.runs(scope, ref.owner, ref.name, limit: 1) do
       {:ok, %{"workflow_runs" => [run | _]}} -> {:ok, run["id"]}
       {:ok, _} -> {:ok, 0}
       error -> error
@@ -53,16 +62,25 @@ defmodule Switchboard.Watches.CI do
   Checks a watch. `{:pending, state}`, `{:done, state}` (with `"result"` and `"runs"`),
   `{:stop, reason}` when it can't work any more, or `{:retry, reason}` for a passing problem.
   """
-  def check(scope, %{target: target, last_state: last}) do
-    {:ok, owner, name} = Forgejo.parse_repo(target["repo"])
+  def check(scope, %{target: target} = watch) do
+    case Repos.resolve(target["repo"], default: :forgejo) do
+      {:ok, ref} -> check(scope, ref, watch)
+      # A GitHub watch after an admin switched GitHub off.
+      {:error, _} -> {:stop, "connection_missing"}
+    end
+  end
 
-    with {:ok, runs} <- runs_for(scope, owner, name, target, last["baseline"]) do
+  defp check(scope, ref, %{target: target, last_state: last}) do
+    client = Repos.client(ref)
+    {owner, name} = {ref.owner, ref.name}
+
+    with {:ok, runs} <- runs_for(client, scope, owner, name, target, last["baseline"]) do
       cond do
         runs == [] ->
           {:pending, Map.merge(last, %{"seen" => "waiting"})}
 
         Enum.all?(runs, &(&1["status"] in @done)) ->
-          {:done, Map.merge(last, done_state(scope, owner, name, runs))}
+          {:done, Map.merge(last, done_state(client, scope, owner, name, runs))}
 
         true ->
           {:pending,
@@ -72,8 +90,8 @@ defmodule Switchboard.Watches.CI do
     |> classify()
   end
 
-  defp runs_for(scope, owner, name, %{"run" => n}, _baseline) do
-    with {:ok, body} <- Forgejo.runs(scope, owner, name, run_number: n) do
+  defp runs_for(client, scope, owner, name, %{"run" => n}, _baseline) do
+    with {:ok, body} <- client.runs(scope, owner, name, run_number: n) do
       case body["workflow_runs"] do
         [_ | _] = runs -> {:ok, Enum.take(runs, 1)}
         _ -> {:error, :not_found}
@@ -81,9 +99,9 @@ defmodule Switchboard.Watches.CI do
     end
   end
 
-  defp runs_for(scope, owner, name, target, baseline) do
-    with {:ok, sha} <- head_sha(scope, owner, name, target),
-         {:ok, body} <- Forgejo.runs(scope, owner, name, head_sha: sha, limit: 20) do
+  defp runs_for(client, scope, owner, name, target, baseline) do
+    with {:ok, sha} <- head_sha(client, scope, owner, name, target),
+         {:ok, body} <- client.runs(scope, owner, name, head_sha: sha, limit: 20) do
       runs =
         (body["workflow_runs"] || [])
         |> Enum.filter(&(is_nil(baseline) or (&1["id"] || 0) > baseline))
@@ -92,19 +110,19 @@ defmodule Switchboard.Watches.CI do
     end
   end
 
-  defp head_sha(scope, owner, name, %{"pr" => n}) do
-    with {:ok, pr} <- Forgejo.pull(scope, owner, name, n),
+  defp head_sha(client, scope, owner, name, %{"pr" => n}) do
+    with {:ok, pr} <- client.pull(scope, owner, name, n),
          sha when is_binary(sha) <- get_in(pr, ["head", "sha"]) || {:error, :not_found},
          do: {:ok, sha}
   end
 
-  defp head_sha(scope, owner, name, %{"branch" => b}) do
-    with {:ok, branch} <- Forgejo.branch(scope, owner, name, b),
+  defp head_sha(client, scope, owner, name, %{"branch" => b}) do
+    with {:ok, branch} <- client.branch(scope, owner, name, b),
          sha when is_binary(sha) <- get_in(branch, ["commit", "id"]) || {:error, :not_found},
          do: {:ok, sha}
   end
 
-  defp done_state(scope, owner, name, runs) do
+  defp done_state(client, scope, owner, name, runs) do
     statuses = Enum.map(runs, & &1["status"])
 
     result =
@@ -120,7 +138,7 @@ defmodule Switchboard.Watches.CI do
     detail =
       failed
       |> Enum.take(@max_failed_runs)
-      |> Enum.map(&run_summary(&1, failed_jobs(scope, owner, name, &1)))
+      |> Enum.map(&run_summary(&1, failed_jobs(client, scope, owner, name, &1)))
 
     rest = Enum.map(others, &run_summary(&1, []))
 
@@ -138,18 +156,19 @@ defmodule Switchboard.Watches.CI do
   end
 
   # The failed job and step, parsed like ci_failure does (the step name only, no log text).
-  defp failed_jobs(scope, owner, name, run) do
-    case Forgejo.jobs(scope, owner, name, run["id"]) do
+  defp failed_jobs(client, scope, owner, name, run) do
+    case client.jobs(scope, owner, name, run["id"]) do
       {:ok, jobs} when is_list(jobs) ->
         jobs
         |> Enum.filter(&(&1["status"] == "failure"))
         |> Enum.take(@max_failed_jobs)
         |> Enum.map(fn job ->
           step =
-            case Forgejo.job_log(scope, owner, name, job["id"]) do
-              {:ok, log} when is_binary(log) -> Forgejo.failure_tail(log).step
-              _ -> nil
-            end
+            job["failed_step"] ||
+              case client.job_log(scope, owner, name, job["id"]) do
+                {:ok, log} when is_binary(log) -> tail(client, log).step
+                _ -> nil
+              end
 
           %{"job" => job["name"], "step" => step}
         end)
@@ -158,6 +177,9 @@ defmodule Switchboard.Watches.CI do
         []
     end
   end
+
+  defp tail(GitHub, log), do: GitHub.failure_tail(log)
+  defp tail(_client, log), do: Forgejo.failure_tail(log)
 
   defp classify({:pending, _} = r), do: r
   defp classify({:done, _} = r), do: r
@@ -169,5 +191,6 @@ defmodule Switchboard.Watches.CI do
   def problem(:unauthorized), do: {:stop, "connection_rejected"}
   def problem(:not_found), do: {:stop, "access_lost"}
   def problem(:forbidden), do: {:stop, "access_lost"}
+  def problem({:sso, _url}), do: {:stop, "access_lost"}
   def problem(reason), do: {:retry, reason}
 end

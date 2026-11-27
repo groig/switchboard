@@ -58,6 +58,8 @@ defmodule Switchboard.Connections do
   end
 
   defp fetch_linkable("forgejo"), do: {:error, :not_linkable}
+  # Linked through its OAuth flow (`store_github/3`), never by pasting a token.
+  defp fetch_linkable("github"), do: {:error, :not_linkable}
 
   defp fetch_linkable(system) do
     case Upstreams.fetch(system) do
@@ -135,9 +137,18 @@ defmodule Switchboard.Connections do
 
       attrs =
         case mod.whoami(secret) do
-          {:ok, identity} -> tested(user, identity)
-          {:error, :unauthorized} -> %{status: "rejected", last_error: "rejected"}
-          {:error, reason} -> %{status: "error", last_error: error_text(reason)}
+          # Authorized in the person's own browser: theirs, whatever the username there.
+          {:ok, identity} when system == "github" ->
+            %{tested(user, identity) | identity_matches: true}
+
+          {:ok, identity} ->
+            tested(user, identity)
+
+          {:error, :unauthorized} ->
+            %{status: "rejected", last_error: "rejected"}
+
+          {:error, reason} ->
+            %{status: "error", last_error: error_text(reason)}
         end
 
       # Re-read: the Forgejo token may have been refreshed (and the row updated) above.
@@ -157,8 +168,39 @@ defmodule Switchboard.Connections do
   defp ok_or({:ok, v}, _), do: {:ok, v}
   defp ok_or(:error, reason), do: {:error, reason}
 
-  @doc "Removes a connection. Forgejo can't be removed (it comes from sign-in)."
+  @doc """
+  Removes a connection. Forgejo can't be removed (it comes from sign-in). GitHub's grant is
+  revoked in GitHub first; the row is removed either way, and `{:ok, :not_revoked}` says GitHub
+  couldn't be reached (the person can revoke it in their GitHub settings).
+  """
   def unlink(%Scope{}, "forgejo"), do: {:error, :not_linkable}
+
+  def unlink(%Scope{user: user} = scope, "github") do
+    case get(user, "github") do
+      nil ->
+        :ok
+
+      %Connection{secret: secret} = conn ->
+        revoked =
+          case secret do
+            %{"access_token" => token} when is_binary(token) ->
+              Switchboard.GitHub.Login.revoke(token)
+
+            _ ->
+              :ok
+          end
+
+        if revoked != :ok, do: Logger.warning("GitHub revoke failed: #{inspect(revoked)}")
+        Repo.delete!(conn)
+
+        Audit.log_web(scope, "connection.unlinked", %{
+          system: "github",
+          revoked: revoked == :ok
+        })
+
+        if revoked == :ok, do: :ok, else: {:ok, :not_revoked}
+    end
+  end
 
   def unlink(%Scope{user: user} = scope, system) do
     {count, _} =
@@ -179,6 +221,21 @@ defmodule Switchboard.Connections do
       %Connection{} -> {:error, :rejected}
       nil -> {:error, :not_connected}
     end
+  end
+
+  ## GitHub
+
+  @doc """
+  Stores the token from the GitHub OAuth flow. The person authorized it in their own browser,
+  so the identity is theirs (`identity_matches: true`) whatever their GitHub username is.
+  """
+  def store_github(%Scope{user: user} = scope, token, identity) when is_binary(token) do
+    store(user, "github", %{"access_token" => token}, %{
+      status: "ok",
+      identity: identity,
+      identity_matches: true
+    })
+    |> audited(scope, "connection.linked", "github")
   end
 
   ## Forgejo

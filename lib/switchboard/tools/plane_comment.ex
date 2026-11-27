@@ -37,6 +37,9 @@ defmodule Switchboard.Tools.PlaneComment do
   def connections, do: [:plane]
 
   @impl true
+  def aliases, do: Switchboard.Tools.Support.task_aliases("id")
+
+  @impl true
   def example do
     %{
       args: %{"id" => "DEMO-12", "text" => "Deployed to staging, ready for QA."},

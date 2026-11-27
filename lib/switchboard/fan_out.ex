@@ -8,7 +8,8 @@ defmodule Switchboard.FanOut do
       ], timeout: 8_000)
       #=> %{plane: {:ok, ...}, prs: {:error, :timeout}}
 
-  Each entry is `{key, system, fun}`. Every task gets the same deadline; one that misses it is
+  Each entry is `{key, system, fun}` (`system` may be a list, e.g. `[:forgejo, :github]`, for a
+  task that reads both; each is noted for the audit row). Every task gets the same deadline; one that misses it is
   killed and reported as `{:error, :timeout}` (its upstream slot is released by the guard), one
   that raises as `{:error, :crashed}`. The call never waits longer than the budget, and the
   others' results are kept. `note/2` turns failures into the one-line notes tools append.
@@ -29,10 +30,13 @@ defmodule Switchboard.FanOut do
     end
   end
 
-  @spec run([{term(), atom(), (-> term())}], keyword()) :: %{term() => term()}
+  @spec run([{term(), atom() | [atom()], (-> term())}], keyword()) :: %{term() => term()}
   def run(entries, opts \\ []) do
     timeout = budget(Keyword.get(opts, :timeout, @default_timeout))
-    Enum.each(entries, fn {_key, system, _fun} -> Switchboard.Tools.note_upstream(system) end)
+
+    for {_key, systems, _fun} <- entries,
+        system <- List.wrap(systems),
+        do: Switchboard.Tools.note_upstream(system)
 
     Switchboard.TaskSupervisor
     |> Task.Supervisor.async_stream_nolink(
@@ -52,7 +56,10 @@ defmodule Switchboard.FanOut do
         {key, {:error, :timeout}}
 
       {{:exit, reason}, {key, system, _fun}} ->
-        Logger.error("Fan-out task #{inspect(key)} (#{system}) crashed: #{inspect(reason)}")
+        Logger.error(
+          "Fan-out task #{inspect(key)} (#{inspect(system)}) crashed: #{inspect(reason)}"
+        )
+
         {key, {:error, :crashed}}
     end)
   end
