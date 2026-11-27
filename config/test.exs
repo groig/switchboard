@@ -85,6 +85,7 @@ config :switchboard, Switchboard.OAuth.CIMD,
 
 # Controls are read from the database on every call (no shared cache between async tests).
 config :switchboard, Switchboard.Controls, cache: false
+config :switchboard, Switchboard.Stats, cache: false
 
 # A write tool for the policy tests (test/support/test_tools.ex).
 config :switchboard, Switchboard.Tools, extra: [Switchboard.TestTools.Note]

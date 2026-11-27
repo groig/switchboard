@@ -322,8 +322,19 @@ defmodule SwitchboardWeb.Dev.DesignLive do
         <.section
           id="display"
           title="Display"
-          lead="Badges, avatars, keys, cards, empty states, skeletons and tabs."
+          lead="Page headers, badges, avatars, keys, cards, empty states, skeletons and tabs."
         >
+          <div id="demo-page-headers" class="space-y-6 rounded-lg border border-border p-4">
+            <Layouts.page_header title="Connections" lead="The default header of app pages." />
+            <Layouts.page_header title="Usage" size="compact">
+              <:subtitle>
+                Compact, for dense pages that must fit one screen · with a subtitle slot
+              </:subtitle>
+              <:actions>
+                <.button size="sm">Action</.button>
+              </:actions>
+            </Layouts.page_header>
+          </div>
           <div class="flex flex-wrap items-center gap-2">
             <.badge>Neutral</.badge>
             <.badge tone="accent">Accent</.badge>

@@ -14,7 +14,7 @@ defmodule SwitchboardWeb.AdminLiveTest do
   test "non-admins get a 404 and never mount admin pages", %{conn: _conn} do
     conn = log_in_user(build_conn(), user_fixture())
 
-    for path <- ~w(/admin /admin/audit /admin/people /admin/health /admin/onboarding) do
+    for path <- ~w(/admin /admin/audit /admin/people /admin/health /admin/onboarding /admin/stats) do
       assert conn |> get(path) |> response(404)
     end
   end
@@ -33,6 +33,47 @@ defmodule SwitchboardWeb.AdminLiveTest do
     assert has_element?(view, "#onboarding-#{ana.id}", "Codex")
     assert has_element?(view, "#onboarding-#{ana.id}", "1/5")
     refute has_element?(view, "#onboarding button")
+  end
+
+  test "stats: tiles, charts and tables; period, anonymize and exclude in the URL", %{
+    conn: conn,
+    admin: admin
+  } do
+    ana = user_fixture(%{username: "ana-stats"})
+    scope = Scope.for_user(ana, client_name: "Codex")
+    Switchboard.Audit.log_tool(scope, "plane_get_item", %{}, outcome: "ok", duration_ms: 120)
+    Switchboard.Audit.log_tool(scope, "plane_comment", %{}, outcome: "ok")
+    Switchboard.Audit.log_tool(Scope.for_user(admin), "whoami", %{}, outcome: "ok")
+
+    {:ok, view, _html} = live(conn, ~p"/admin/stats")
+
+    for id <- ~w(stats-as-of tile-signups tile-active tile-calls tile-success tile-connections
+                 tile-writes chart-calls chart-people top-tools top-people top-clients
+                 top-systems top-cross top-errors),
+        do: assert(has_element?(view, "##{id}"))
+
+    assert has_element?(view, "#tile-calls", "3")
+    assert has_element?(view, "#tile-writes", "1")
+    assert has_element?(view, "#top-people", "@ana-stats")
+    assert has_element?(view, "#top-clients", "Codex")
+
+    view |> form("#stats-anon") |> render_change(%{"anon" => "true"})
+    assert_patch(view, ~p"/admin/stats?period=launch&anon=1")
+    refute has_element?(view, "#top-people", "@ana-stats")
+    assert view |> element("#top-people") |> render() =~ ~r/(User|Persona) 1/
+
+    view |> element(~s(#stats-period a[href*="period=7d"])) |> render_click()
+    assert_patch(view, ~p"/admin/stats?period=7d&anon=1")
+
+    view
+    |> form("#stats-exclude-form")
+    |> render_change(%{"people" => %{admin.id => "true", ana.id => "false"}})
+
+    assert_patch(view, ~p"/admin/stats?period=7d&exclude=#{admin.id}&anon=1")
+    assert has_element?(view, "#tile-calls", "2")
+
+    assert view |> element("#stats-exclude-open") |> render() =~
+             ~r/(Excluding|Excluye a) 1 (person|persona)/
   end
 
   test "controls: read-only mode, maintenance message and tool switches", %{conn: conn} do

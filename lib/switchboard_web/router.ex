@@ -102,6 +102,7 @@ defmodule SwitchboardWeb.Router do
       live "/people", PeopleLive, :index
       live "/health", HealthLive, :index
       live "/onboarding", OnboardingLive, :index
+      live "/stats", StatsLive, :index
     end
   end
 

@@ -354,6 +354,13 @@ defmodule SwitchboardWeb.Layouts do
             {gettext("Onboarding")}
           </.nav_item>
           <.nav_item
+            navigate={~p"/admin/stats"}
+            icon="hero-chart-bar"
+            active={@active == :admin_stats}
+          >
+            {gettext("Usage")}
+          </.nav_item>
+          <.nav_item
             navigate={~p"/admin/health"}
             icon="hero-signal"
             active={@active == :admin_health}
@@ -420,18 +427,31 @@ defmodule SwitchboardWeb.Layouts do
   end
 
   @doc """
-  The page heading: a title, an optional one-line lead and actions on the right.
+  The page heading: a title, an optional one-line lead (or a `subtitle` slot for richer text)
+  and actions on the right. `size="compact"` is for dense pages that must fit one screen
+  (smaller title, less space below).
   """
   attr :title, :string, required: true
   attr :lead, :string, default: nil
+  attr :size, :string, default: "default", values: ~w(default compact)
+  slot :subtitle
   slot :actions
 
   def page_header(assigns) do
     ~H"""
-    <div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+    <div class={[
+      "flex flex-wrap items-end justify-between",
+      if(@size == "compact", do: "mb-1 gap-3", else: "mb-8 gap-4")
+    ]}>
       <div class="min-w-0">
-        <h1 class="text-2xl font-semibold text-fg">{@title}</h1>
+        <h1 class={[
+          "font-semibold text-fg",
+          if(@size == "compact", do: "text-xl", else: "text-2xl")
+        ]}>
+          {@title}
+        </h1>
         <p :if={@lead} class="mt-1 max-w-2xl text-md text-fg-muted">{@lead}</p>
+        <p :if={@subtitle != []} class="mt-0.5 text-sm text-fg-muted">{render_slot(@subtitle)}</p>
       </div>
       <div :if={@actions != []} class="flex items-center gap-2">{render_slot(@actions)}</div>
     </div>
