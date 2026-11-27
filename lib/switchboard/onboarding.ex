@@ -91,6 +91,13 @@ defmodule Switchboard.Onboarding do
       done_by: ["task_status"]
     },
     %{
+      id: "image",
+      group: :work,
+      text: gettext_noop("Show me the screenshots in %{task}."),
+      needs: ["plane"],
+      done_by: ["plane_get_image"]
+    },
+    %{
       id: "watch",
       group: :work,
       text: gettext_noop("Tell me when CI finishes on this PR."),

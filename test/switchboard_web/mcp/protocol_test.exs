@@ -335,5 +335,22 @@ defmodule SwitchboardWeb.MCP.ProtocolTest do
 
       assert "DEMO-12" in values
     end
+
+    test "a tool result with an image is a text block then an image block", %{auth: auth} do
+      %{"result" => %{"isError" => false, "content" => [text, image]}} =
+        stateless(
+          auth,
+          1,
+          "tools/call",
+          %{"name" => "plane_get_image", "arguments" => %{"task" => "DEMO-20", "image" => 1}},
+          "plane_get_image"
+        )
+
+      assert %{"type" => "text", "text" => md} = text
+      assert md =~ "## DEMO-20, image 1"
+
+      assert %{"type" => "image", "mimeType" => "image/png", "data" => data} = image
+      assert Base.decode64!(data) == Switchboard.UpstreamStubs.png()
+    end
   end
 end

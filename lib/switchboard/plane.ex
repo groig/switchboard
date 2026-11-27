@@ -1,6 +1,6 @@
 defmodule Switchboard.Plane do
   @moduledoc """
-  Read-only client for Plane's public API (v1.4), with the caller's own API key.
+  Read-only client for Plane's public API (v1.4; images need v1.5), with the caller's own API key.
 
   Notes from the real instance:
 
@@ -237,6 +237,43 @@ defmodule Switchboard.Plane do
       {:ok, if(is_list(body), do: body, else: body["results"] || [])}
     end
   end
+
+  @doc """
+  An uploaded asset (an image in a description or comment): `asset_url` (presigned, on the Plane
+  host), `asset_name`, `asset_type`. Needs Plane 1.5+ (1.4 answers 500) and, from 1.5, membership
+  of the asset's project (403 otherwise).
+  """
+  def asset(cred, asset_id), do: get(cred, ws_path("/assets/#{asset_id}/"))
+
+  @image_cap 5_000_000
+
+  @doc """
+  Downloads an asset's presigned URL **without** the API key (the URL carries its own
+  signature). Refuses URLs that aren't on the Plane host. Returns `{:ok, content_type, bytes}`
+  or `{:error, reason}` (`:foreign_host`, `:too_large`, a status...). Capped at 5 MB.
+  """
+  def download(url) do
+    if Switchboard.Plane.Images.plane_origin?(url) do
+      case Upstreams.request(:plane,
+             url: url,
+             max_body: @image_cap,
+             headers: [accept: "image/png, image/jpeg, image/gif, image/webp"]
+           ) do
+        {:ok, %Req.Response{status: 200, body: body} = resp} when is_binary(body) ->
+          {:ok, resp |> Req.Response.get_header("content-type") |> List.first(), body}
+
+        {:ok, %Req.Response{status: 200}} ->
+          {:error, :not_an_image}
+
+        other ->
+          Upstreams.body(other)
+      end
+    else
+      {:error, :foreign_host}
+    end
+  end
+
+  def image_cap, do: @image_cap
 
   @doc "Search by title text or identifier across the workspace (`id`, `name`, `identifier`)."
   def search(cred, query, limit \\ 15) do

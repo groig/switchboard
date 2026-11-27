@@ -50,7 +50,9 @@ defmodule Switchboard.Workflows.Facts do
   def tool(scope, mod, args) do
     if Controls.tool_enabled?(mod.name()) do
       case mod.call(scope, args) do
-        {:ok, md} -> {:ok, demote(md)}
+        {:ok, md} when is_binary(md) -> {:ok, demote(md)}
+        # Workflows are text (prompts): a tool's images stay out of them.
+        {:ok, %{text: md}} -> {:ok, demote(md)}
         {:error, message} -> {:error, to_string(message)}
       end
     else

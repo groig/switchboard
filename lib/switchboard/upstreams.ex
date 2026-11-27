@@ -48,7 +48,8 @@ defmodule Switchboard.Upstreams do
 
   @doc """
   Performs a request against `system`. `opts` are Req options (`:url`, `:method`, `:headers`,
-  `:json`, `:params`...). Returns `{:ok, %Req.Response{}}` with the body decoded when it is JSON,
+  `:json`, `:params`...), plus `:max_body` to change the body cap (bytes; 2 MB by default).
+  An absolute `:url` is requested as is, without the system's base URL. Returns `{:ok, %Req.Response{}}` with the body decoded when it is JSON,
   or `{:error, reason}` with `reason` one of `:timeout`, `:too_large` or `{:transport, msg}`.
   """
   def request(system, opts, base_url \\ nil) when is_atom(system) do
@@ -71,10 +72,14 @@ defmodule Switchboard.Upstreams do
   end
 
   defp do_request(system, opts, base_url) do
+    {cap, opts} = Keyword.pop(opts, :max_body)
+
     cap =
-      if system == :outline and opts[:url] == "/api/documents.search",
-        do: 8_000_000,
-        else: @max_body
+      cond do
+        is_integer(cap) -> cap
+        system == :outline and opts[:url] == "/api/documents.search" -> 8_000_000
+        true -> @max_body
+      end
 
     req =
       Req.new(

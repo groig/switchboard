@@ -65,8 +65,20 @@ defmodule Switchboard.MCP.Server do
     case frame.assigns[:current_scope] do
       %Scope{} = scope ->
         case Tools.run(scope, name, args || %{}) do
-          {:ok, markdown} -> {:reply, Response.text(Response.tool(), markdown), frame}
-          {:error, message} -> {:reply, Response.tool() |> Response.error(message), frame}
+          {:ok, markdown} when is_binary(markdown) ->
+            {:reply, Response.text(Response.tool(), markdown), frame}
+
+          # Text first: clients that can't show images still read it.
+          {:ok, %{text: text, images: images}} ->
+            response =
+              Enum.reduce(images, Response.text(Response.tool(), text), fn image, r ->
+                Response.image(r, Base.encode64(image.data), image.mime_type)
+              end)
+
+            {:reply, response, frame}
+
+          {:error, message} ->
+            {:reply, Response.tool() |> Response.error(message), frame}
         end
 
       _ ->

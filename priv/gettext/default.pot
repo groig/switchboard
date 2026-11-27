@@ -1531,7 +1531,7 @@ msgstr ""
 msgid "Draft my standup for #demo-standup"
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:110
+#: lib/switchboard/onboarding.ex:117
 #, elixir-autogen, elixir-format
 msgid "Draft my standup."
 msgstr ""
@@ -1576,7 +1576,7 @@ msgstr ""
 msgid "Hand a task over to QA with a test plan"
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:124
+#: lib/switchboard/onboarding.ex:131
 #, elixir-autogen, elixir-format
 msgid "Hand off %{task} to QA."
 msgstr ""
@@ -1680,7 +1680,7 @@ msgstr ""
 msgid "Run this in a terminal. Codex opens your browser right away to sign in."
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:103
+#: lib/switchboard/onboarding.ex:110
 #, elixir-autogen, elixir-format
 msgid "Search the wiki for how we deploy."
 msgstr ""
@@ -1710,12 +1710,12 @@ msgstr ""
 msgid "Team workflows, ready-made"
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:96
+#: lib/switchboard/onboarding.ex:103
 #, elixir-autogen, elixir-format
 msgid "Tell me when CI finishes on this PR."
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:117
+#: lib/switchboard/onboarding.ex:124
 #, elixir-autogen, elixir-format
 msgid "Triage %{error} and suggest a fix."
 msgstr ""
@@ -1806,27 +1806,32 @@ msgstr ""
 msgid "Wow"
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:254
+#: lib/switchboard/onboarding.ex:261
 #, elixir-autogen, elixir-format
 msgid "errors in your projects"
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:255
+#: lib/switchboard/onboarding.ex:262
 #, elixir-autogen, elixir-format
 msgid "wiki search and drafts"
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:256
+#: lib/switchboard/onboarding.ex:263
 #, elixir-autogen, elixir-format
 msgid "your DMs and mentions, and messages you approve"
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:252
+#: lib/switchboard/onboarding.ex:259
 #, elixir-autogen, elixir-format
 msgid "your pull requests, CI and reviews"
 msgstr ""
 
-#: lib/switchboard/onboarding.ex:253
+#: lib/switchboard/onboarding.ex:260
 #, elixir-autogen, elixir-format
 msgid "your tasks and their comments"
+msgstr ""
+
+#: lib/switchboard/onboarding.ex:96
+#, elixir-autogen, elixir-format
+msgid "Show me the screenshots in %{task}."
 msgstr ""

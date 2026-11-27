@@ -205,6 +205,14 @@ contains no live @-mentions (a zero-width space follows every `@`).
   the person's items and stops at the first closed one (a page or two per project). `expand=state`
   returns the state object. The API key allows about 60 requests a minute, shared with anything
   else using it; a 429 becomes "rate limit reached".
+  Images in `description_html`/`comment_html` are `<image-component src="<asset uuid>">` (older
+  content: a full URL or `<img>`); `Switchboard.Plane.Images` numbers them (description, then
+  comments oldest first) for `plane_get_item`'s `[image N: …]` placeholders and `plane_get_image`.
+  An image is `GET /api/v1/workspaces/{slug}/assets/{asset_id}/` (Plane 1.5+; 1.4 answers 500;
+  403 without project membership), whose `asset_url` is a presigned URL on the Plane host fetched
+  without the key. Not `/api/assets/v2/...` (session cookie only) nor `issue-attachments` (real
+  attachments only from 1.5). A `plane_get_image` call costs up to three key requests (item and
+  comments are usually cached from `plane_get_item`, the asset route) plus the keyless download.
 - **Forgejo** (16.0.7): PR search through `/repos/issues/search?type=pulls`; CI from the combined
   commit status and Actions runs/jobs; job logs mark steps with `⭐ Run Main <step>` and the failing
   step ends with `⚙️ [runner]: exitcode 'N': failure`. `ci_failure` keeps the lines of the failing

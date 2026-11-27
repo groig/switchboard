@@ -7,6 +7,10 @@ defmodule Switchboard.Tool do
   already checked against `input_schema/0` for required keys and basic types. It returns compact
   Markdown written for a model to read: `{:ok, markdown}`, or `{:error, message}` for a failure
   the agent should see (it becomes an `isError` result, not a protocol error).
+
+  A tool that returns pictures (`plane_get_image`) answers `{:ok, %{text: markdown, images:
+  [%{data: bytes, mime_type: "image/png"}]}}`: the adapter sends the text block first, so a
+  client that can't show images still reads it, then one image block per entry (base64).
   """
 
   alias Switchboard.Scope
@@ -31,7 +35,14 @@ defmodule Switchboard.Tool do
   @callback input_schema() :: map()
   @callback annotations() :: annotations()
   @callback connections() :: [connection()]
-  @callback call(Scope.t(), args :: map()) :: {:ok, String.t()} | {:error, String.t()}
+  @typedoc "Raw image bytes (not base64) and their checked MIME type."
+  @type image :: %{data: binary(), mime_type: String.t()}
+
+  @typedoc "A result with images: Markdown plus pictures."
+  @type rich :: %{text: String.t(), images: [image()]}
+
+  @callback call(Scope.t(), args :: map()) ::
+              {:ok, String.t()} | {:ok, rich()} | {:error, String.t()}
 
   @doc """
   Argument names whose values must never be stored or logged (the audit log keeps

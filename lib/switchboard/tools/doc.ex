@@ -180,7 +180,9 @@ defmodule Switchboard.Tools.Doc do
       props
       |> Enum.sort_by(fn {k, _} -> {k not in required, k} end)
       |> Enum.map_join("\n", fn {name, spec} ->
-        type = (spec["enum"] && Enum.map_join(spec["enum"], " \\| ", &"`#{&1}`")) || spec["type"]
+        type =
+          (spec["enum"] && Enum.map_join(spec["enum"], " \\| ", &"`#{&1}`")) ||
+            type_label(spec["type"])
 
         "| `#{name}` | #{type} | #{if name in required, do: "yes", else: "no"} | #{spec["description"] || ""} |"
       end)
@@ -189,6 +191,9 @@ defmodule Switchboard.Tools.Doc do
   end
 
   defp arguments(_), do: "None.\n"
+
+  defp type_label(types) when is_list(types), do: Enum.join(types, " \\| ")
+  defp type_label(type), do: type
 
   defp example(mod) do
     if function_exported?(mod, :example, 0) do

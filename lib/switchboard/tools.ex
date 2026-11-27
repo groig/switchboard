@@ -17,6 +17,7 @@ defmodule Switchboard.Tools do
     Switchboard.Tools.Release,
     Switchboard.Tools.PlaneSearch,
     Switchboard.Tools.PlaneGetItem,
+    Switchboard.Tools.PlaneGetImage,
     Switchboard.Tools.PlaneMyItems,
     Switchboard.Tools.PrStatus,
     Switchboard.Tools.CiFailure,
@@ -84,9 +85,11 @@ defmodule Switchboard.Tools do
   once, as `workflow:<name>`; its refusals here (kill switch, rate limit, arguments) are audited
   here as usual.
 
-  The maintenance message, when set, is prepended to successful results.
+  The maintenance message, when set, is prepended to successful results (to the text of a
+  result with images). The audit row's size counts the image bytes too.
   """
-  @spec run(Scope.t(), String.t(), map()) :: {:ok, String.t()} | {:error, String.t()}
+  @spec run(Scope.t(), String.t(), map()) ::
+          {:ok, String.t()} | {:ok, Switchboard.Tool.rich()} | {:error, String.t()}
   def run(%Scope{} = scope, name, args) when is_map(args) do
     started = System.monotonic_time()
     Process.delete(:switchboard_audited)
@@ -105,6 +108,9 @@ defmodule Switchboard.Tools do
             if Process.get(:switchboard_audited),
               do: {"ok", {:ok, markdown}, mod},
               else: {"ok", {:ok, with_notice(markdown)}, mod}
+
+          {:ok, %{text: text, images: images} = rich} when is_binary(text) and is_list(images) ->
+            {"ok", {:ok, %{rich | text: with_notice(text)}}, mod}
 
           {:error, message} ->
             {"error", {:error, to_string(message)}, mod}
@@ -128,7 +134,8 @@ defmodule Switchboard.Tools do
 
     {error, result_bytes} =
       case result do
-        {:ok, markdown} -> {nil, byte_size(markdown)}
+        {:ok, markdown} when is_binary(markdown) -> {nil, byte_size(markdown)}
+        {:ok, %{text: text, images: images}} -> {nil, byte_size(text) + image_bytes(images)}
         {:error, message} -> {message, nil}
       end
 
@@ -198,6 +205,8 @@ defmodule Switchboard.Tools do
       {:error, "#{mod.name()} failed unexpectedly. The error was logged."}
   end
 
+  defp image_bytes(images), do: Enum.reduce(images, 0, &(byte_size(&1.data) + &2))
+
   defp with_notice(markdown) do
     case Controls.maintenance_message() do
       nil -> markdown
@@ -231,6 +240,10 @@ defmodule Switchboard.Tools do
   defp validate_args(_schema, _args), do: {:error, "This tool takes no arguments"}
 
   defp type_ok?(%{"enum" => values}, v), do: v in values
+
+  defp type_ok?(%{"type" => types}, v) when is_list(types),
+    do: Enum.any?(types, &type_ok?(%{"type" => &1}, v))
+
   defp type_ok?(%{"type" => "string"}, v), do: is_binary(v)
   defp type_ok?(%{"type" => "integer"}, v), do: is_integer(v)
   defp type_ok?(%{"type" => "number"}, v), do: is_number(v)

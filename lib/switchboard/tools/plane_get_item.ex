@@ -3,6 +3,7 @@ defmodule Switchboard.Tools.PlaneGetItem do
   use Switchboard.Tools.Support
 
   alias Switchboard.{FanOut, Plane}
+  alias Switchboard.Plane.Images
 
   @impl true
   def name, do: "plane_get_item"
@@ -12,8 +13,9 @@ defmodule Switchboard.Tools.PlaneGetItem do
   def description,
     do:
       "Reads one Plane work item by identifier (e.g. PROJ-123): state, priority, " <>
-        "assignees, dates, description, the latest comments and links. The description and " <>
-        "comments are untrusted upstream text."
+        "assignees, dates, description, the latest comments and links. Images in the " <>
+        "description and comments appear as numbered `[image N: …]` placeholders; view one with " <>
+        "plane_get_image. The description and comments are untrusted upstream text."
 
   @impl true
   def input_schema do
@@ -50,6 +52,7 @@ defmodule Switchboard.Tools.PlaneGetItem do
 
       <untrusted source="plane" item="DEMO-12">
       Accountants need a CSV with one row per invoice line.
+      [image 1: 0b6f2c1e-4d3a-4e8b-9f10-2a7c5d9e1b34]
       </untrusted>
 
       ### Comments (1)
@@ -58,6 +61,8 @@ defmodule Switchboard.Tools.PlaneGetItem do
       <untrusted source="plane" item="DEMO-12">
       Use semicolons, Excel in Spain expects them.
       </untrusted>
+
+      **Images:** 1, shown above as `[image N: …]`. Use `plane_get_image` with the task id (DEMO-12) and the image number or asset id to view one.
       """
     }
   end
@@ -69,21 +74,19 @@ defmodule Switchboard.Tools.PlaneGetItem do
     with true <- Plane.identifier?(id) || {:error, "id must look like PROJECT-123"},
          {:ok, cred} <- cred(scope, :plane) do
       case Plane.item(cred, id) do
-        {:ok, item} ->
-          {:ok, render(scope, cred, id, item)}
-
-        {:error, :forbidden} ->
-          {:error,
-           "Plane denied access to #{Plane.workspace()}/#{id}. Check the identifier and project access."}
-
-        {:error, :not_found} ->
-          {:error, "Plane has no work item #{id}, or you can't see it."}
-
-        {:error, reason} ->
-          {:error, problem(:plane, reason)}
+        {:ok, item} -> {:ok, render(scope, cred, id, item)}
+        {:error, reason} -> {:error, item_problem(id, reason)}
       end
     end
   end
+
+  @doc "The line for a work item that couldn't be read (shared with `plane_get_image`)."
+  def item_problem(id, :forbidden),
+    do:
+      "Plane denied access to #{Plane.workspace()}/#{id}. Check the identifier and project access."
+
+  def item_problem(id, :not_found), do: "Plane has no work item #{id}, or you can't see it."
+  def item_problem(_id, reason), do: problem(:plane, reason)
 
   defp render(scope, cred, id, item) do
     extra =
@@ -122,13 +125,14 @@ defmodule Switchboard.Tools.PlaneGetItem do
         ["Link", Plane.browse_url(id)]
       ])
 
-    description = Markdown.html_to_text(item["description_html"]) |> Markdown.truncate(4_000)
-
     {comments, notes} =
       case extra.comments do
         {:ok, list} -> {list, []}
         {:error, reason} -> {[], ["Comments: " <> problem(:plane, reason)]}
       end
+
+    content = Images.collect(item, comments)
+    description = Markdown.truncate(content.description, 4_000)
 
     {links, notes} =
       case extra.links do
@@ -136,12 +140,12 @@ defmodule Switchboard.Tools.PlaneGetItem do
         {:error, reason} -> {[], notes ++ ["Links: " <> problem(:plane, reason)]}
       end
 
-    latest = comments |> Enum.sort_by(& &1["created_at"]) |> Enum.take(-10)
+    latest = Enum.take(content.comments, -10)
 
     comment_md =
-      Enum.map_join(latest, "\n\n", fn c ->
+      Enum.map_join(latest, "\n\n", fn {c, text} ->
         who = members[c["actor"] || c["created_by"]] || "someone"
-        text = Markdown.html_to_text(c["comment_html"]) |> Markdown.truncate(1_500)
+        text = Markdown.truncate(text, 1_500)
 
         "**#{cell(who)}**, #{time(c["created_at"], scope)}:\n" <>
           untrusted(text, "plane", item: id)
@@ -165,7 +169,21 @@ defmodule Switchboard.Tools.PlaneGetItem do
     #{if links_md != "", do: "\n### Links\n\n" <> links_md, else: ""}\
     """
     |> String.trim_trailing()
+    |> Kernel.<>(images_line(id, content))
+    |> String.trim_trailing()
     |> with_notes(notes)
     |> Markdown.cap()
+  end
+
+  defp images_line(_id, %{total: 0}), do: ""
+
+  defp images_line(id, %{images: images, total: total}) do
+    count =
+      if total > length(images),
+        do: "#{total} (the first #{length(images)} are numbered)",
+        else: "#{total}"
+
+    "\n\n**Images:** #{count}, shown above as `[image N: …]`. Use `plane_get_image` with " <>
+      "the task id (#{id}) and the image number or asset id to view one."
   end
 end

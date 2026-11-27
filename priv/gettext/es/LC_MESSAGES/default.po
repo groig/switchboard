@@ -1531,7 +1531,7 @@ msgstr "Crear una clave"
 msgid "Draft my standup for #demo-standup"
 msgstr "Prepara mi standup para #demo-standup"
 
-#: lib/switchboard/onboarding.ex:110
+#: lib/switchboard/onboarding.ex:117
 #, elixir-autogen, elixir-format
 msgid "Draft my standup."
 msgstr "Prepara mi standup."
@@ -1576,7 +1576,7 @@ msgstr "Pasa DEMO-12 a QA en #demo-qa"
 msgid "Hand a task over to QA with a test plan"
 msgstr "Pasar una tarea a QA con un plan de pruebas"
 
-#: lib/switchboard/onboarding.ex:124
+#: lib/switchboard/onboarding.ex:131
 #, elixir-autogen, elixir-format
 msgid "Hand off %{task} to QA."
 msgstr "Pasa %{task} a QA."
@@ -1680,7 +1680,7 @@ msgstr "Ejecútalos en una terminal (el inicio de sesión necesita una interacti
 msgid "Run this in a terminal. Codex opens your browser right away to sign in."
 msgstr "Ejecútalo en una terminal. Codex abre el navegador enseguida para iniciar sesión."
 
-#: lib/switchboard/onboarding.ex:103
+#: lib/switchboard/onboarding.ex:110
 #, elixir-autogen, elixir-format
 msgid "Search the wiki for how we deploy."
 msgstr "Busca en la wiki cómo desplegamos."
@@ -1710,12 +1710,12 @@ msgstr "Switchboard llama a cada sistema como tú, con tu propia clave. Crea la 
 msgid "Team workflows, ready-made"
 msgstr "Flujos de equipo listos para usar"
 
-#: lib/switchboard/onboarding.ex:96
+#: lib/switchboard/onboarding.ex:103
 #, elixir-autogen, elixir-format
 msgid "Tell me when CI finishes on this PR."
 msgstr "Avísame cuando termine la CI de esta PR."
 
-#: lib/switchboard/onboarding.ex:117
+#: lib/switchboard/onboarding.ex:124
 #, elixir-autogen, elixir-format
 msgid "Triage %{error} and suggest a fix."
 msgstr "Analiza %{error} y propón una solución."
@@ -1806,27 +1806,32 @@ msgstr "Trabajo"
 msgid "Wow"
 msgstr "Lo mejor"
 
-#: lib/switchboard/onboarding.ex:254
+#: lib/switchboard/onboarding.ex:261
 #, elixir-autogen, elixir-format
 msgid "errors in your projects"
 msgstr "los errores de tus proyectos"
 
-#: lib/switchboard/onboarding.ex:255
+#: lib/switchboard/onboarding.ex:262
 #, elixir-autogen, elixir-format
 msgid "wiki search and drafts"
 msgstr "buscar en la wiki y crear borradores"
 
-#: lib/switchboard/onboarding.ex:256
+#: lib/switchboard/onboarding.ex:263
 #, elixir-autogen, elixir-format
 msgid "your DMs and mentions, and messages you approve"
 msgstr "tus mensajes directos y menciones, y los mensajes que apruebes"
 
-#: lib/switchboard/onboarding.ex:252
+#: lib/switchboard/onboarding.ex:259
 #, elixir-autogen, elixir-format
 msgid "your pull requests, CI and reviews"
 msgstr "tus pull requests, CI y revisiones"
 
-#: lib/switchboard/onboarding.ex:253
+#: lib/switchboard/onboarding.ex:260
 #, elixir-autogen, elixir-format
 msgid "your tasks and their comments"
 msgstr "tus tareas y sus comentarios"
+
+#: lib/switchboard/onboarding.ex:96
+#, elixir-autogen, elixir-format
+msgid "Show me the screenshots in %{task}."
+msgstr "Enséñame las capturas de %{task}."

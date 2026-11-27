@@ -18,7 +18,7 @@ defmodule Switchboard.UpstreamStubs do
 
     Req.Test.stub(Switchboard.Upstreams, fn conn ->
       {conn, body} = read_json(conn)
-      conn = Plug.Conn.put_private(conn, :json_body, body)
+      conn = conn |> put_private(:json_body, body) |> put_private(:test_pid, test)
 
       if write?(conn) do
         creds =
@@ -148,6 +148,60 @@ defmodule Switchboard.UpstreamStubs do
     })
   end
 
+  # DEMO-20 has screenshots; each asset id below answers differently (see plane_asset/2).
+  defp plane(conn, @ws <> "/work-items/DEMO-20/") do
+    Req.Test.json(conn, %{
+      "id" => "i-20",
+      "project" => "p-demo",
+      "name" => "Fix the broken chart",
+      "sequence_id" => 20,
+      "priority" => "medium",
+      "state" => %{"id" => "s-todo", "name" => "Todo", "group" => "unstarted"},
+      "assignees" => [],
+      "labels" => [],
+      "description_html" =>
+        ~s(<p>The chart is cut off:</p><image-component src="#{asset(1)}" id="c1" width="640" height="320" status="uploaded"></image-component>) <>
+          ~s(<p>Like this one: <img src="https://elsewhere.example.org/pic.png?a=1&amp;b=2"></p>) <>
+          ~s(<p><img src="http://plane.test/api/assets/v2/workspaces/acme/projects/p-demo/issues/i-20/#{asset(2)}/"></p>),
+      "updated_at" => "2026-11-25T10:00:00Z"
+    })
+  end
+
+  defp plane(conn, @ws <> "/projects/p-demo/work-items/i-20/comments/") do
+    later =
+      Enum.map_join([4, 5, 6, 7, 8, 9, 10, 1], "", fn n ->
+        ~s(<image-component src="#{asset(n)}" status="uploaded"></image-component>)
+      end)
+
+    Req.Test.json(conn, %{
+      "results" => [
+        %{
+          "comment_html" => "<p>More:</p>" <> later,
+          "actor" => @me,
+          "created_at" => "2026-11-25T10:00:00Z"
+        },
+        %{
+          "comment_html" =>
+            ~s(<p>Animated:</p><image-component src="#{asset(3)}"></image-component>),
+          "actor" => "u-bruno",
+          "created_at" => "2026-11-25T09:00:00Z"
+        }
+      ]
+    })
+  end
+
+  defp plane(conn, @ws <> "/projects/p-demo/work-items/i-20/links/"),
+    do: Req.Test.json(conn, %{"results" => []})
+
+  defp plane(conn, @ws <> "/assets/" <> rest),
+    do: plane_asset(conn, String.trim_trailing(rest, "/"))
+
+  defp plane(conn, "/uploads/" <> rest) do
+    send(conn.private.test_pid, {:presigned_fetch, conn.req_headers, conn.query_string})
+    [_ws, file] = String.split(rest, "/", parts: 2)
+    plane_upload(conn, String.slice(file, 0, 36))
+  end
+
   defp plane(conn, @ws <> "/work-items/DEMO-404/"),
     do: conn |> put_status(404) |> Req.Test.json(%{"error" => "not found"})
 
@@ -201,6 +255,72 @@ defmodule Switchboard.UpstreamStubs do
   end
 
   # Recently updated items (workflows): one of the person's, one created by them, one neither.
+  @doc "A synthetic asset id for the DEMO-20 fixtures."
+  def asset(n),
+    do: "00000000-0000-4000-8000-" <> String.pad_leading(Integer.to_string(n), 12, "0")
+
+  @png <<0x89, "PNG", 0x0D, 0x0A, 0x1A, 0x0A, "synthetic">>
+  def png, do: @png
+
+  defp plane_asset(conn, id) do
+    n = id |> String.slice(-12, 12) |> Integer.parse() |> elem(0)
+    url = "http://plane.test/uploads/ws-1/#{id}-shot.png?X-Amz-Signature=sig&X-Amz-Expires=3600"
+
+    case n do
+      2 ->
+        conn |> put_status(500) |> Req.Test.json(%{"error" => "server error"})
+
+      4 ->
+        conn |> put_status(403) |> Req.Test.json(%{"error" => "forbidden"})
+
+      5 ->
+        conn |> put_status(404) |> Req.Test.json(%{"error" => "not found"})
+
+      6 ->
+        conn |> put_status(400) |> Req.Test.json(%{"error" => "not uploaded"})
+
+      7 ->
+        asset_json(conn, id, "https://files.example.net/uploads/ws-1/#{id}?X-Amz-Signature=sig")
+
+      _ ->
+        asset_json(conn, id, url)
+    end
+  end
+
+  defp asset_json(conn, id, url) do
+    Req.Test.json(conn, %{
+      "asset_id" => id,
+      "asset_url" => url,
+      "asset_name" => "shot.png",
+      "asset_type" => "image/png"
+    })
+  end
+
+  defp plane_upload(conn, id) do
+    n = id |> String.slice(-12, 12) |> Integer.parse() |> elem(0)
+
+    {type, body} =
+      case n do
+        1 ->
+          {"image/png", @png}
+
+        3 ->
+          {"binary/octet-stream", "GIF89a" <> "synthetic"}
+
+        8 ->
+          {"image/svg+xml",
+           ~s{<svg xmlns="http://www.w3.org/2000/svg"><script>x()</script></svg>}}
+
+        9 ->
+          {"image/png", @png <> :binary.copy("x", 5_000_001)}
+
+        10 ->
+          {"image/png", "<html><script>x</script></html>"}
+      end
+
+    conn |> put_resp_content_type(type, nil) |> send_resp(200, body)
+  end
+
   defp plane_recent(conn) do
     recent = DateTime.utc_now() |> DateTime.add(-3600) |> DateTime.to_iso8601()
 

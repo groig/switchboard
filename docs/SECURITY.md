@@ -95,6 +95,25 @@ grows with each milestone.
   (read-only mode), and are audited. Each write tool's description requires the agent to show the
   exact change and get the user's OK first.
 
+### Images from Plane (`plane_get_image`)
+
+Screenshots in task descriptions and comments are uploads by any member of the project, so an
+image is untrusted content like the text around it (it can contain written instructions).
+
+- **Only images the task references.** The tool reads the task and its comments with the caller's
+  key and accepts an image number or asset id only if that task embeds it; any other asset id is
+  refused before Plane is asked. Plane (1.5+) also checks the caller's project membership on the
+  asset route.
+- **No credentials on the download.** The asset route returns a presigned URL; Switchboard fetches
+  it without the API key, and only when its scheme, host and port equal `PLANE_URL` (no other
+  host is ever fetched, so a crafted `asset_url` can't point Switchboard at an internal service).
+  Images hot-linked from other sites are listed in `plane_get_item` but never fetched.
+- **Raster images only.** The declared `Content-Type` must be PNG, JPEG, GIF or WebP (or a
+  generic binary type) and the magic bytes must agree; SVG, HTML and anything script-capable is
+  refused. Bodies are streamed and aborted past 5 MB; the usual upstream timeouts apply.
+- The text block next to the image says it comes from a Plane user and is data, never
+  instructions, and the server instructions say the same. Audit rows record the size only.
+
 ### Prompt injection through Rocket.Chat (milestone 5)
 
 `chat_inbox` and `chat_read` put messages written by *anyone in the company* in front of the
