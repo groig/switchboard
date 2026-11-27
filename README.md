@@ -39,6 +39,7 @@ codex mcp add switchboard --url https://switchboard.example.com/mcp
 | 6. Team workflows as slash commands | Implemented: `standup`, `next`, `inbox`, `pickup`, `triage`, `handoff` as MCP prompts and the `workflow` tool |
 | 7. Onboarding | Implemented: the Get started page (`/start`), the `help` workflow and the admin Onboarding view |
 | GitHub repositories | Implemented (optional): per-person OAuth App connection, routing by owner, URL or prefix, PRs, checks, Actions logs and CI watches, GitHub in the joins and workflows; argument aliases and clearer argument errors for every tool |
+| Pilot fixes | `plane_get_items` (batch reads paced to the Plane budget, per-person item cache), forgiving `release` repo names and `plane_set_state` state names, audited OAuth failures, collapsed duplicate clients, usage stats page (`/admin/stats`) |
 | Deployment | Release image, Compose example, health check and CI workflow included |
 
 ## Development / Desarrollo

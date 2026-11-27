@@ -28,6 +28,7 @@ agent ──Streamable HTTP + bearer──▶ Caddy ──▶ Switchboard (Phoen
 | Watches | `Switchboard.Watches`, `Switchboard.Watches.*` (Oban workers) | "DM me when this finishes" (below). |
 | Workflows | `Switchboard.Workflow`, `Switchboard.Workflows`, `Switchboard.Workflows.*`, `Switchboard.Tools.Workflow` | Team workflows as MCP prompts (slash commands) and as the `workflow` tool (below). |
 | Onboarding | `Switchboard.Onboarding`, `SwitchboardWeb.StartLive`, `SwitchboardWeb.Admin.OnboardingLive`, `Switchboard.Workflows.Help` | Get started page, the `help` workflow and the admin Onboarding view, all from existing records (below). |
+| Usage stats | `Switchboard.Stats`, `SwitchboardWeb.Admin.StatsLive` | `/admin/stats`: usage at a glance from the audit log, one screen for slides (below). |
 
 ### `Tools.run/3`
 
@@ -106,6 +107,25 @@ Forgejo with the person's stored token. A deactivated account, a revoked Forgejo
 the allowed orgs revokes every grant of that person; access tokens already issued die within the
 hour. If Forgejo can't be reached the refresh goes ahead (fail open), and the next one checks again.
 
+### OAuth audit
+
+Every step of the client flow leaves a `web` audit row, so a failed connection can be told
+apart from one the person never finished:
+
+| Action | When | Arguments (never a code, verifier or token) |
+|---|---|---|
+| `oauth.registered` / `oauth.register_failed` | `POST /oauth/register` | client name, redirect URIs, auth method, software id/version, reason (`invalid_redirect_uri`, `invalid_client_metadata`) |
+| `oauth.authorize_failed` | `/oauth/authorize` refused (GET or the consent POST) | reason (`unknown_client`, `redirect_uri_not_registered`, `client_metadata_unusable`, `invalid_request`, `invalid_target`, `unsupported_response_type`), client id and kind, requested and registered redirect URIs, `resource` |
+| `oauth.approved` / `oauth.denied` | the consent decision | client id, kind, redirect URI |
+| `oauth.token_issued` / `oauth.token_failed` | `POST /oauth/token` | grant type, client id and kind, whether `client_id` and `resource` were sent, reason (`pkce_failed`, `redirect_mismatch` with both URIs, `expired_code`, `code_reused`, `unknown_code`, `unknown_client`, `client_mismatch`, `invalid_resource`, `unknown_refresh_token`, `refresh_expired`, `refresh_reuse`, `grant_revoked`, `membership_lost`) |
+
+The person is known on the browser endpoints and, on the token endpoint, from the code or
+refresh token presented (codes are kept after use, so a late or replayed exchange still names
+them). A public client may also send its `client_id` as HTTP Basic credentials with an empty
+password (RFC 6749 §2.3.1). The Clients page groups a person's connections by client name: a
+client that registers itself on every sign-in shows once, with a count and a button that
+disconnects all but the most recently used one.
+
 ### Personal tokens
 
 `Authorization: Bearer sb_...`. `MCPAuth` verifies the hash, the expiry and revocation, and builds
@@ -171,10 +191,24 @@ cross-system tool ──▶ FanOut.run/2 (one task per system, shared time budge
 - **Output:** compact Markdown (`Switchboard.Markdown`): tables with escaped cells, absolute links,
   times in the person's time zone, capped at 12 000 characters (16 000 for `my_work`).
 - **Cache** (`Switchboard.Cache`): every Plane GET is cached per key for 45 s (and `my_items` as a
-  whole), projects, states, members and `users/me` for 10 minutes. People's Plane keys are shared
-  with their other tools (about 60 requests a minute), so repeated `my_work` calls don't burn the
-  budget. A Plane write drops that key's cached reads. A 429 says plainly that the key's rate limit
-  is used up.
+  whole), one work item's reads (the item, its comments and links) for 60 s, projects, states,
+  members and `users/me` for 10 minutes. People's Plane keys are shared with their other tools
+  (about 60 requests a minute), so repeated `my_work` calls and re-reads of a task don't burn the
+  budget. A Plane write (`plane_comment`, `plane_set_state`) drops that task's cached reads, its
+  project's item lists and `my_items`; other tasks stay cached.
+- **Plane budget** (`Switchboard.Plane.Budget`): every uncached Plane request is counted per key
+  (a sliding minute), and Plane's `X-RateLimit-Remaining`/`X-RateLimit-Reset` headers, when sent,
+  lower the estimate (the person's other tools use the key too). After a 429 the key fails fast
+  until `Retry-After` (or the reset, or a minute) and the message says when to retry. A batch
+  read sets a pacing deadline (`Budget.pace/1`): while the key is down to its reserve (8 of the
+  60), requests wait for the window to free a slot, and give up with
+  `{:rate_limited, seconds}` when the wait would pass the deadline. Config:
+  `config :switchboard, Switchboard.Plane.Budget, limit: 60, reserve: 8, window_ms: 60_000`.
+- **`plane_get_items`** reads up to 25 items in one call, in two paced passes with one 20 s
+  deadline: the items first (2 or 4 at a time, depending on the budget), then their comments
+  and links. Unknown and forbidden ids become notes; items not read in time (or after a 429)
+  are listed in one note with when to retry; items whose comments or links were skipped say so.
+  Descriptions are cut at 700 characters with a pointer to `plane_get_item`.
 
 ## The write path (milestone 4)
 
@@ -192,7 +226,7 @@ person per minute by default —, audit) and the same guard, with two extra rule
 | Tool | Upstream call | Guards |
 |---|---|---|
 | `plane_comment` | `POST .../work-items/{id}/comments/` (`comment_html`, escaped) | ≤ 5 000 characters |
-| `plane_set_state` | `PATCH .../work-items/{id}/` (`state`) | name checked against the project's states (case-insensitive); returns old → new; no-op when unchanged |
+| `plane_set_state` | `PATCH .../work-items/{id}/` (`state`) | name matched against the project's states: exact (case-insensitive), then ignoring spacing and punctuation, then by word overlap (reordered words, stop words ignored, `test`/`testing` alike); a clear best match is used and named in the result, an unclear one fails listing the closest first, then every state; returns old → new; no-op when unchanged |
 | `error_resolve`, `error_ignore` | `POST /api/v1/projects/{slug}/issues/{id}/resolve` / `ignore` | ignore only for errors that need no fix (description) |
 | `docs_draft` | `POST /api/documents.create` with `publish: false` | refuses to report success if Outline says it was published |
 | `send_message` | `rooms.info` + `subscriptions.getOne` (membership), `im.create` for `@user`, `chat.postMessage` | refuses `@all`, `@here`, `@everyone`, channels the person isn't in, > 4 000 characters; the text is redacted in the audit log |
@@ -472,7 +506,7 @@ derives every state from records that already exist.
 |---|---|---|
 | Connect your agent | any MCP call by the person (shows the client and when) | latest `audit_events` row with `kind = 'mcp'` |
 | Link your accounts | every system is linked and working | `connections` (`rejected` or someone else's key is an error; `untested` counts as linked) |
-| Try these | 3 of the 12 prompts tried | distinct `action` of their successful MCP rows; each prompt lists the tools or `workflow:<name>` that tick it |
+| Try these | 3 of the 14 prompts tried | distinct `action` of their successful MCP rows; each prompt lists the tools or `workflow:<name>` that tick it |
 | Commands | any workflow run | the same rows (`workflow:<name>`) |
 
 - **Landing.** `UserAuth.signed_in_path/1` sends a person to `/start` after sign-in (and from
@@ -499,6 +533,31 @@ derives every state from records that already exist.
 - **Admin view.** `/admin/onboarding` (admin and tailnet only, read-only): per person the agent
   (client, when, whether a call succeeded), accounts linked, prompts tried and last activity, in
   four queries.
+
+## Usage stats
+
+`/admin/stats` (`SwitchboardWeb.Admin.StatsLive`, `Switchboard.Stats`) shows usage on one
+1440×810 screen for slides, in both themes: headline tiles (people signed up and active, tool
+calls, success rate, linked keys per system, actions taken), two server-rendered SVG charts
+(calls per day stacked OK/error, active people per day) and six top-10 tables (tools with
+success and median duration, people, clients, systems, cross-system calls, error reasons).
+
+- **Periods:** since launch (the local day of the first audit row), last 30 or 7 local days; the
+  last two compare each headline with the period of the same length before. Days are the
+  viewer's (`AT TIME ZONE` their profile zone).
+- **Definitions:** "active" is at least one MCP call; "actions taken" are successful calls of the
+  write tools except watches (`Stats.write_actions/0`); "cross-system" is the joins (tools that
+  read two or more systems, Forgejo and GitHub counting as one) and every workflow
+  (`Stats.cross_actions/0`); systems connected are linked keys that are usable (`ok`,
+  `untested`), not Forgejo (everyone has it); error reasons are the first line of the error with
+  URLs, UUIDs, SHAs, task ids, quoted values and numbers replaced.
+- **Screenshots:** the period, the excluded people and anonymized names ("User 1" is the most
+  active) are URL parameters. Excluded people are left out of every number.
+- **Cost:** each section is one pass over the period's MCP rows through the `at` index, and the
+  sections run side by side (5 at a time); medians come from a per-tool histogram of durations
+  rather than `percentile_cont`. Measured on 1M rows (laptop, Postgres 17, rows in time order as
+  the append-only table keeps them): since launch about 0.5 s, 30 days about 150 ms, 7 days
+  about 45 ms, then cached for a minute per period, exclusion and zone. No extra index.
 
 ## Releases
 
@@ -537,6 +596,15 @@ one.
 - `argusIssues[].fromRelease`: the triage cited the release's commits or changed files.
 - `authors` are Rocket.Chat usernames; `my_work` matches them against the person's Forgejo username
   and their linked Rocket.Chat username.
+
+**Matching what people type** (`release`, `watch_release`, `Releases.resolve_repo/2` and
+`suggest_names/2`): a repo may be `owner/name` (the cards use the short name), any case, or a
+unique case-insensitive prefix of a repo in the feed. A name that isn't a release gets
+suggestions: names containing it (a version such as `27.1` or a date) and similar names; a repo
+given as the name shows that repo's latest release. When nothing matches, the answer lists the
+repos with releases in the window and their latest release, and says that a repo only appears
+once its deploy pipeline publishes to the feed, so a missing repo reads as "not set up", not
+"nothing shipped".
 
 The releases feed is a service credential (`RELEASES_TOKEN`), read-only and the same for everyone;
 it only serves what the release cards already show in Rocket.Chat.

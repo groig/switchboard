@@ -80,6 +80,15 @@ grows with each milestone.
 - **Authorization code interception:** PKCE S256 is mandatory; codes live 60 s, are single use, and
   a replayed code revokes what the first exchange produced. Every authorization response carries
   `iss` (RFC 9207) against mix-up attacks.
+- **The OAuth endpoints are audited, unauthenticated ones too.** Registrations and refused
+  registrations, refused `/authorize` requests, and every token request (code exchange and
+  refresh, success and failure, with a reason such as `pkce_failed`, `redirect_mismatch`,
+  `expired_code`, `unknown_client`, `refresh_reuse`) become `web` audit rows with the client and,
+  when the code or refresh token names one, the person. The rows never hold a code, verifier or
+  token: only the grant type, the client, the reason, whether `client_id`/`resource` were sent
+  and, for a redirect mismatch, the two redirect URIs. Anyone can make `/oauth/register` and
+  `/oauth/token` write a row, which costs one small insert per request (as registration already
+  did); retention prunes them like any other row.
 
 ### Prompt injection from upstream content
 
@@ -298,5 +307,10 @@ Scrubbing is best effort: the log is still the person's own data, read with thei
   minute.
 - **Webhook payloads aren't trusted for content:** only the repository name is read. A watch DM
   can be lost if the node dies mid-post (at most once, never twice).
-- **Single node:** rate limits and the controls cache are per node. Fine for one container. A
+- **Plane pacing is an estimate:** `Switchboard.Plane.Budget` counts the requests Switchboard
+  sends with a key and reads Plane's `X-RateLimit-*` headers, but the person's other tools spend
+  the same key unseen until Plane says so. After a 429 the key fails fast until Plane's reset
+  (or a minute) for every tool, so a burst from elsewhere can make Switchboard's Plane reads fail
+  for up to a minute, with a message that says when to retry.
+- **Single node:** rate limits, the Plane budget and the controls cache are per node. Fine for one container. A
   cluster would need shared buckets.

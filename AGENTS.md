@@ -60,8 +60,12 @@ guidance below.
   agents plausibly guess; `Tools.run/3` renames them and audits `_aliases`. Task ids use
   `Tools.Support.task_aliases/1`.
 - **Plane budget:** people's Plane keys allow about 60 requests a minute, shared with their other
-  tools. Plane reads go through `Switchboard.Plane` (cached per key); call `Plane.forget/1` after a
-  write (the write helpers do).
+  tools. Plane reads go through `Switchboard.Plane` (cached per key; one task's reads 60 s);
+  every uncached request goes through `Switchboard.Plane.Budget` (counted, refused after a 429
+  until the reset). The write helpers drop the written task's cached reads
+  (`Plane.forget_item/3`); `Plane.forget/1` drops them all. A tool that reads many items paces
+  with `Budget.pace/1` and returns what it read plus a **Notes** line for the rest (as
+  `plane_get_items` does), never a burst of single reads.
 - **Upstream text goes in `Switchboard.Untrusted.wrap/3`** blocks (descriptions, comments, error
   text, wiki pages, logs, release highlights). Table cells go through `Switchboard.Markdown.cell/2`.
 - **Watches** (`Switchboard.Watches`) live in Postgres and are checked by Oban jobs with the owner's own
@@ -96,6 +100,11 @@ guidance below.
   (only the ones available now; one confirmation each). Sections that reuse a tool go through
   `Workflows.Facts.tool/3` so the tool's kill switch applies. Keep names short (Claude Code shows
   `/mcp__switchboard__<name>`); list new ones in `docs/TOOLS.md` (generated) and the README.
+- **Usage stats** (`Switchboard.Stats`, `/admin/stats`) aggregate in SQL over `audit_events`
+  (MCP rows by `at`), one pass per section run side by side, cached a minute. Keep the page
+  within one 1440×810 screen in both themes; "write" and "cross-system" come from the tool
+  registry (`Stats.write_actions/0`, `Stats.cross_actions/0`), so new tools are counted without
+  edits.
 - **Onboarding** (`Switchboard.Onboarding`, `/start`, the `help` workflow, `/admin/onboarding`)
   derives every state from existing records (audit rows, connections); don't add tracking
   tables. A new tool or workflow worth trying gets a prompt in `Onboarding.prompts/0` (with the
@@ -103,7 +112,9 @@ guidance below.
   `Upstreams.connection_url/1`. Key-creation links (`key_url/0`) are checked against the upstream
   versions in `docs/ARCHITECTURE.md`; recheck them on upgrades.
 - **Audit:** web actions call `Switchboard.Audit.log_web/4` inside the context function that does
-  them, and get a label in `SwitchboardWeb.AuditLabels`. Tool calls are audited by `Tools.run/3`.
+  them, and get a label in `SwitchboardWeb.AuditLabels`. The OAuth endpoints audit their
+  failures too (`oauth.register_failed`, `oauth.authorize_failed`, `oauth.token_failed` with a
+  reason; never a code, verifier or token). Tool calls are audited by `Tools.run/3`.
   Never update or delete `audit_events` (a trigger refuses); retention is `Audit.prune/1`.
 - **Controls** (kill switches, limits, read-only mode, maintenance message) change only through
   `Switchboard.Controls` (admin scope, audited). Reads are cached in `:persistent_term`; tests run
