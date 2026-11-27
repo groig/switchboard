@@ -44,7 +44,10 @@ defmodule Switchboard.GitHub do
   @doc "GitHub's web origin (authorize, settings), without a trailing slash."
   def web_url, do: String.trim_trailing(config()[:url] || "https://github.com", "/")
 
-  @doc "The REST API base URL: `GITHUB_API_URL`, `api.github.com`, or `<GITHUB_URL>/api/v3`."
+  @doc """
+  The REST API base URL: `api.github.com`, or `<GITHUB_ENTERPRISE_URL>/api/v3` for GitHub
+  Enterprise Server (`:api_url` in config overrides both; tests set it).
+  """
   def api_url do
     cond do
       present?(config()[:api_url]) -> String.trim_trailing(config()[:api_url], "/")

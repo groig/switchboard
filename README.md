@@ -91,7 +91,7 @@ Production boot reports missing required settings together.
 | `AUDIT_RETENTION_DAYS`, `POOL_SIZE` | Audit retention in days (180) and database pool size (10) |
 | `GITHUB_CLIENT_ID`, `GITHUB_CLIENT_SECRET` | Switchboard's GitHub OAuth App (below). Without both, GitHub is off: no connection, and `owner/repo` always means Forgejo |
 | `GITHUB_OWNERS` | Comma-separated GitHub users or organizations whose repositories live on GitHub (`owner/repo` with one of these owners goes to GitHub). The joins (`my_work`, `task_status`, workflows) only search these on GitHub |
-| `GITHUB_URL`, `GITHUB_API_URL` | Only for GitHub Enterprise Server: the web origin and the REST API base (default `https://github.com`, `https://api.github.com`; the API defaults to `<GITHUB_URL>/api/v3` when only `GITHUB_URL` is set) |
+| `GITHUB_ENTERPRISE_URL` | Only for GitHub Enterprise Server: its web origin (default `https://github.com`); the API is `<url>/api/v3` |
 
 Compose requires `SWITCHBOARD_TAG` (published image tag), `POSTGRES_PASSWORD` (use a URL-safe password), `RELEASES_NETWORK` (existing Docker network name) and an explicit `TRUSTED_PROXIES` for your proxy. It constructs `DATABASE_URL` for the bundled database.
 
