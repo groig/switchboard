@@ -5,7 +5,7 @@ defmodule SwitchboardWeb.OAuthController do
   """
   use SwitchboardWeb, :controller
 
-  alias Switchboard.{Audit, OAuth}
+  alias Switchboard.{Audit, OAuth, Scope}
   alias SwitchboardWeb.Plugs.ContentSecurityPolicy
 
   ## Metadata
@@ -43,7 +43,7 @@ defmodule SwitchboardWeb.OAuthController do
   ## Dynamic Client Registration
 
   def register(conn, params) do
-    case OAuth.register_client(params) do
+    case OAuth.register_client(params, audit_scope(conn)) do
       {:ok, client} ->
         conn
         |> put_status(201)
@@ -66,7 +66,7 @@ defmodule SwitchboardWeb.OAuthController do
   ## Authorization
 
   def authorize(conn, params) do
-    case OAuth.validate_authorize_request(params) do
+    case OAuth.validate_authorize_request(params, audit_scope(conn)) do
       {:ok, request} ->
         case conn.assigns.current_scope do
           nil ->
@@ -110,7 +110,7 @@ defmodule SwitchboardWeb.OAuthController do
   def decide(conn, %{"decision" => decision} = params) do
     scope = conn.assigns.current_scope
 
-    case {scope, OAuth.validate_authorize_request(params)} do
+    case {scope, OAuth.validate_authorize_request(params, audit_scope(conn))} do
       {nil, _} ->
         conn
         |> put_status(401)
@@ -121,7 +121,17 @@ defmodule SwitchboardWeb.OAuthController do
 
       {_, {:ok, request}} when decision == "approve" ->
         code = OAuth.create_code(scope.user, request)
-        Audit.log_web(scope, "oauth.approved", %{client_id: request.client_id})
+
+        Audit.log_web(
+          %{scope | client_id: request.client_id, client_name: request.client.client_name},
+          "oauth.approved",
+          %{
+            client_id: request.client_id,
+            client_kind: request.client.kind,
+            redirect_uri: request.redirect_uri
+          }
+        )
+
         redirect_back(conn, request.redirect_uri, %{"code" => code, "state" => request.state})
 
       {_, {:ok, request}} ->
@@ -157,7 +167,7 @@ defmodule SwitchboardWeb.OAuthController do
   ## Token
 
   def token(conn, params) do
-    case OAuth.token(params) do
+    case OAuth.token(client_basic_auth(conn, params), audit_scope(conn)) do
       {:ok, response} ->
         conn |> no_store() |> json(response)
 
@@ -172,6 +182,31 @@ defmodule SwitchboardWeb.OAuthController do
   def revoke(conn, params) do
     OAuth.revoke_token(params["token"])
     conn |> no_store() |> send_resp(200, "")
+  end
+
+  # Who an OAuth request comes from, for its audit row: the signed-in person on the browser
+  # endpoints, nobody yet on the client endpoints (OAuth fills in the code's or token's owner).
+  defp audit_scope(conn) do
+    user =
+      case conn.assigns[:current_scope] do
+        %Scope{user: user} -> user
+        _ -> nil
+      end
+
+    %Scope{user: user, ip: conn.remote_ip |> :inet.ntoa() |> to_string(), via: :oauth}
+  end
+
+  # A public client may send its client_id as HTTP Basic credentials with an empty password
+  # (RFC 6749 §2.3.1) instead of in the body; take it from there when the body has none.
+  defp client_basic_auth(conn, params) do
+    with nil <- params["client_id"],
+         ["Basic " <> encoded] <- get_req_header(conn, "authorization"),
+         {:ok, decoded} <- Base.decode64(String.trim(encoded)),
+         [id, ""] <- String.split(decoded, ":", parts: 2) do
+      Map.put(params, "client_id", URI.decode_www_form(id))
+    else
+      _ -> params
+    end
   end
 
   defp no_store(conn) do

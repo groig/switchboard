@@ -11,8 +11,43 @@ Caddy 2.11). They explain several rules in `AGENTS.md`.
 | Scope requested | `mcp` (from `scopes_supported`) | `mcp` |
 | `resource` parameter (RFC 8707) | sent | sent |
 
-Dynamic client registration (RFC 7591) also works (tested with a scripted client); neither real
-client needed it.
+Dynamic client registration (RFC 7591) also works; neither real client needs it by default.
+
+## Codex with dynamic client registration (2026-11-27)
+
+A pilot user approved the consent screen about ten times over two hours, with eight DCR-registered
+Codex clients, before any MCP call succeeded; it worked once Codex used its CIMD URL. The audit
+log had no trace of why, because the token endpoint wasn't audited (it is now, see
+`docs/ARCHITECTURE.md`, "OAuth audit").
+
+Reproduced against local dev with Codex 0.172.0, `codex mcp login switchboard --no-browser
+--oauth-client-registration dcr` (consent driven by hand), then a Codex session after expiring
+the access token:
+
+| Step | What Codex sent | Result |
+|---|---|---|
+| Discovery | `GET /mcp` (401), protected resource metadata, authorization server metadata | ok |
+| Registration | `client_name: "Codex"`, `redirect_uris: ["http://127.0.0.1:<port>/callback"]` (the port of that login), `grant_types` code + refresh, `response_types: ["code"]`, `application_type: "native"`, `scope: "mcp"`, auth method `none` | 201, a new client per login |
+| Authorize | `response_type=code`, PKCE S256, `redirect_uri` as registered, `scope=mcp`, `resource=<origin>/mcp` | consent, then the loopback callback |
+| Token | code exchange | 200 |
+| Next session | the expired access token refreshed, then `initialize` and calls | 200 |
+
+So the DCR path works end to end with this Codex, including refresh. With `auto` (the default)
+Codex 0.172 uses CIMD whenever the server advertises it, as Switchboard does; the pilot's DCR
+clients therefore came from an older Codex or a forced registration mode. Checked and ruled out
+on Switchboard's side: loopback port matching (any port, same host and path), PKCE, the
+`resource` check (sent at authorize; optional at the token endpoint, trailing slash accepted),
+code lifetime (60 s, exchanged within a second), access and refresh token lifetimes, the CSP
+`form-action` for the loopback redirect, and refresh for DCR clients.
+
+Two things are now handled more forgivingly: a public client may send `client_id` as HTTP Basic
+credentials with an empty password, and the Clients page collapses a client's repeated
+registrations so the stale ones can be removed. `test/switchboard_web/controllers/oauth_codex_flow_test.exs`
+replays Codex's requests. Without `--no-browser`, Codex waits for the browser to reach its
+loopback callback; if Codex runs on another machine (SSH, a container), the browser's redirect to
+`127.0.0.1:<port>` never reaches it, which looks exactly like repeated approvals with no token
+request. The `oauth.approved` rows without a following `oauth.token_issued` or `oauth.token_failed`
+now show that case.
 
 ## Protocol versions
 

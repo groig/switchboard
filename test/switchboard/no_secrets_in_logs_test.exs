@@ -291,6 +291,23 @@ defmodule Switchboard.NoSecretsInLogsTest do
 
         %{"code" => code} = URI.decode_query(URI.parse(redirected_to(approved)).query)
 
+        # Failed token requests are audited too (with the reason), never with the values.
+        wrong = secret("wrong-verifier") |> String.pad_trailing(50, "x")
+
+        for form <- [
+              %{
+                "grant_type" => "authorization_code",
+                "code" => code,
+                "client_id" => reg["client_id"],
+                "redirect_uri" => params["redirect_uri"],
+                "code_verifier" => wrong
+              },
+              %{"grant_type" => "authorization_code", "code" => secret("code")},
+              %{"grant_type" => "refresh_token", "refresh_token" => secret("refresh")}
+            ] do
+          assert build_conn() |> post(~p"/oauth/token", form) |> json_response(400)
+        end
+
         tokens =
           build_conn()
           |> post(~p"/oauth/token", %{

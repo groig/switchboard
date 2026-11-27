@@ -5,7 +5,7 @@ defmodule SwitchboardWeb.ClientsLive do
   """
   use SwitchboardWeb, :live_view
 
-  alias Switchboard.{Audit, OAuth, PersonalTokens}
+  alias Switchboard.{OAuth, PersonalTokens}
 
   @impl true
   def mount(_params, _session, socket) do
@@ -26,7 +26,7 @@ defmodule SwitchboardWeb.ClientsLive do
     scope = socket.assigns.current_scope
 
     socket
-    |> assign(:grants, OAuth.list_grants(scope.user))
+    |> assign(:grant_groups, OAuth.grant_groups(scope.user))
     |> assign(:tokens, PersonalTokens.list(scope))
   end
 
@@ -62,27 +62,57 @@ defmodule SwitchboardWeb.ClientsLive do
 
       <section id="grants" class="mb-10">
         <h2 class="mb-3 text-md font-semibold text-fg">{gettext("Connected clients")}</h2>
-        <.table id="grants-table" rows={@grants} row_id={&"grant-#{&1.id}"}>
-          <:col :let={grant} label={gettext("Client")}>
-            <div class="font-medium text-fg">{grant.client_name || gettext("Unnamed client")}</div>
-            <div class="max-w-sm truncate font-mono text-2xs text-fg-subtle">{grant.client_id}</div>
+        <.table id="grants-table" rows={@grant_groups} row_id={&"grant-group-#{group_dom_id(&1.key)}"}>
+          <:col :let={group} label={gettext("Client")}>
+            <div class="flex items-center gap-2">
+              <span class="font-medium text-fg">{group.name || gettext("Unnamed client")}</span>
+              <.badge :if={length(group.grants) > 1} id={"grant-count-#{group_dom_id(group.key)}"}>
+                {ngettext("%{count} connection", "%{count} connections", length(group.grants))}
+              </.badge>
+            </div>
+            <div class="max-w-sm truncate font-mono text-2xs text-fg-subtle">
+              {group.latest.client_id}
+            </div>
+            <p :if={length(group.grants) > 1} class="mt-1 text-xs text-fg-subtle">
+              {gettext(
+                "The client registered itself again on each sign-in. Only the most recently used connection is likely still in use."
+              )}
+            </p>
           </:col>
-          <:col :let={grant} label={gettext("Connected")}>
-            <.relative_time at={grant.inserted_at} scope={@current_scope} />
+          <:col :let={group} label={gettext("Connected")}>
+            <.relative_time at={group.latest.inserted_at} scope={@current_scope} />
           </:col>
-          <:col :let={grant} label={gettext("Last used")}>
-            <.relative_time at={grant.last_used_at} scope={@current_scope} />
+          <:col :let={group} label={gettext("Last used")}>
+            <.relative_time at={group.latest.last_used_at} scope={@current_scope} />
           </:col>
-          <:action :let={grant}>
-            <.button
-              id={"revoke-grant-#{grant.id}"}
-              size="sm"
-              phx-click="revoke_grant"
-              phx-value-id={grant.id}
-              data-confirm={gettext("Disconnect this client? It will have to sign in again.")}
-            >
-              {gettext("Revoke")}
-            </.button>
+          <:action :let={group}>
+            <div class="flex justify-end gap-2">
+              <.button
+                :if={length(group.grants) > 1}
+                id={"remove-stale-#{group_dom_id(group.key)}"}
+                size="sm"
+                phx-click="remove_stale"
+                phx-value-key={group.key}
+                data-confirm={
+                  ngettext(
+                    "Disconnect the older connection of this client? The most recently used one stays.",
+                    "Disconnect the %{count} older connections of this client? The most recently used one stays.",
+                    length(group.grants) - 1
+                  )
+                }
+              >
+                {ngettext("Remove %{count} older", "Remove %{count} older", length(group.grants) - 1)}
+              </.button>
+              <.button
+                id={"revoke-group-#{group_dom_id(group.key)}"}
+                size="sm"
+                phx-click="revoke_group"
+                phx-value-key={group.key}
+                data-confirm={gettext("Disconnect this client? It will have to sign in again.")}
+              >
+                {gettext("Revoke")}
+              </.button>
+            </div>
           </:action>
           <:empty>
             <.empty_state icon="hero-cpu-chip" title={gettext("No clients yet")}>
@@ -209,14 +239,35 @@ defmodule SwitchboardWeb.ClientsLive do
       [{gettext("Never"), "never"}]
   end
 
-  @impl true
-  def handle_event("revoke_grant", %{"id" => id}, socket) do
-    scope = socket.assigns.current_scope
+  @doc false
+  def group_dom_id(key),
+    do: :crypto.hash(:sha256, key) |> Base.url_encode64(padding: false) |> binary_part(0, 10)
 
-    case OAuth.revoke_user_grant(scope.user, id) do
-      {:ok, grant} ->
-        Audit.log_web(scope, "client.revoked", %{client_id: grant.client_id})
+  @impl true
+  def handle_event("revoke_group", %{"key" => key}, socket) do
+    case OAuth.revoke_grant_group(socket.assigns.current_scope, key) do
+      {:ok, _} ->
         {:noreply, socket |> put_flash(:info, gettext("Client disconnected.")) |> load()}
+
+      {:error, :not_found} ->
+        {:noreply, load(socket)}
+    end
+  end
+
+  def handle_event("remove_stale", %{"key" => key}, socket) do
+    case OAuth.revoke_grant_group(socket.assigns.current_scope, key, keep_latest: true) do
+      {:ok, count} ->
+        {:noreply,
+         socket
+         |> put_flash(
+           :info,
+           ngettext(
+             "Removed %{count} older connection.",
+             "Removed %{count} older connections.",
+             count
+           )
+         )
+         |> load()}
 
       {:error, :not_found} ->
         {:noreply, load(socket)}

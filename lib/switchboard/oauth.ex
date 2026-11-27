@@ -13,8 +13,9 @@ defmodule Switchboard.OAuth do
   import Ecto.Query
 
   alias Switchboard.Accounts.User
+  alias Switchboard.Audit
   alias Switchboard.OAuth.{CIMD, Client, Code, Grant, Token}
-  alias Switchboard.Repo
+  alias Switchboard.{Repo, Scope}
 
   @access_ttl 3600
   @refresh_ttl 30 * 24 * 3600
@@ -79,8 +80,49 @@ defmodule Switchboard.OAuth do
     end
   end
 
-  @doc "Dynamic Client Registration (RFC 7591). Only public clients using `none` auth."
-  def register_client(params) when is_map(params) do
+  @doc """
+  Dynamic Client Registration (RFC 7591). Only public clients using `none` auth. With an audit
+  scope (the request's IP, no user), the registration or its rejection is recorded
+  (`oauth.registered`, `oauth.register_failed`).
+  """
+  def register_client(params, audit \\ nil) when is_map(params) do
+    result = do_register(params)
+
+    if audit do
+      base = %{
+        client_name: params["client_name"],
+        redirect_uris: params["redirect_uris"],
+        token_endpoint_auth_method: params["token_endpoint_auth_method"],
+        software_id: params["software_id"],
+        software_version: params["software_version"]
+      }
+
+      case result do
+        {:ok, client} ->
+          Audit.log_web(
+            %{audit | client_id: client.client_id, client_name: client.client_name},
+            "oauth.registered",
+            Map.put(base, :client_id, client.client_id)
+          )
+
+        {:error, error, description} ->
+          Audit.log_web(
+            %{audit | client_name: str(params["client_name"])},
+            "oauth.register_failed",
+            Map.put(base, :reason, to_string(error)),
+            outcome: "error",
+            error: description
+          )
+      end
+    end
+
+    result
+  end
+
+  defp str(s) when is_binary(s), do: String.slice(s, 0, 200)
+  defp str(_), do: nil
+
+  defp do_register(params) do
     redirect_uris = params["redirect_uris"]
 
     cond do
@@ -159,7 +201,52 @@ defmodule Switchboard.OAuth do
   `{:error, :redirect, redirect_uri, error, description, state}` for errors that go back to the
   client.
   """
-  def validate_authorize_request(params) do
+  def validate_authorize_request(params, audit \\ nil) do
+    result = do_validate_authorize(params)
+    if audit, do: audit_authorize(audit, params, result)
+    result
+  end
+
+  # A refused authorization request, for the admin audit view: which client, which redirect URI,
+  # and why (never the code challenge or state).
+  defp audit_authorize(_audit, _params, {:ok, _}), do: :ok
+
+  defp audit_authorize(audit, params, error) do
+    {reason, message} =
+      case error do
+        {:error, :no_redirect, message} -> {authorize_reason(message), message}
+        {:error, :redirect, _uri, code, description, _state} -> {code, description}
+      end
+
+    client = Repo.get_by(Client, client_id: to_string(params["client_id"]))
+
+    Audit.log_web(
+      %{audit | client_id: str(params["client_id"]), client_name: client && client.client_name},
+      "oauth.authorize_failed",
+      %{
+        reason: reason,
+        client_id: str(params["client_id"]),
+        client_kind: client && client.kind,
+        redirect_uri: str(params["redirect_uri"]),
+        registered_redirect_uris: client && client.redirect_uris,
+        resource: str(params["resource"]),
+        response_type: str(params["response_type"]),
+        code_challenge_method: str(params["code_challenge_method"])
+      },
+      outcome: "error",
+      error: message
+    )
+  end
+
+  defp authorize_reason("Unknown client."), do: "unknown_client"
+
+  defp authorize_reason("The redirect URI is not registered" <> _),
+    do: "redirect_uri_not_registered"
+
+  defp authorize_reason("The client's metadata document" <> _), do: "client_metadata_unusable"
+  defp authorize_reason(_), do: "invalid_request"
+
+  defp do_validate_authorize(params) do
     client_id = params["client_id"]
     redirect_uri = params["redirect_uri"]
     state = params["state"]
@@ -239,12 +326,111 @@ defmodule Switchboard.OAuth do
   Handles a token request. Returns `{:ok, token_response}` or `{:error, error, description}`
   (status 400 errors per RFC 6749 §5.2).
   """
-  def token(%{"grant_type" => "authorization_code"} = params), do: exchange_code(params)
-  def token(%{"grant_type" => "refresh_token"} = params), do: refresh(params)
+  def token(params, audit \\ nil) do
+    result = do_token(params)
+    if audit, do: audit_token(audit, params, result)
+    result
+  end
 
-  def token(_),
+  defp do_token(%{"grant_type" => "authorization_code"} = params), do: exchange_code(params)
+  defp do_token(%{"grant_type" => "refresh_token"} = params), do: refresh(params)
+
+  defp do_token(_),
     do:
       {:error, "unsupported_grant_type", "grant_type must be authorization_code or refresh_token"}
+
+  # Every token request is audited (code exchange and refresh, success and failure) with the
+  # person and client when Switchboard can tell, and the reason of a failure. Never the code,
+  # the verifier or a token.
+  defp audit_token(audit, params, result) do
+    grant_type = str(params["grant_type"])
+    {user, client_id, code_redirect} = token_subject(params)
+    client_id = client_id || str(params["client_id"])
+    client = client_id && Repo.get_by(Client, client_id: client_id)
+    scope = %{audit | user: user, client_id: client_id, client_name: client && client.client_name}
+
+    args = %{
+      grant_type: grant_type,
+      client_id: client_id,
+      client_kind: client && client.kind,
+      sent_client_id: params["client_id"] != nil,
+      sent_resource: params["resource"] != nil
+    }
+
+    case result do
+      {:ok, _} ->
+        Audit.log_web(scope, "oauth.token_issued", args)
+
+      {:error, error, description} ->
+        reason =
+          if error == "invalid_grant" and is_nil(client) and client_id,
+            do: "unknown_client",
+            else: token_reason(error, description)
+
+        extra =
+          if reason == "redirect_mismatch",
+            do: %{redirect_uri: str(params["redirect_uri"]), code_redirect_uri: code_redirect},
+            else: %{}
+
+        Audit.log_web(
+          scope,
+          "oauth.token_failed",
+          args |> Map.merge(extra) |> Map.put(:reason, reason),
+          outcome: "error",
+          error: "#{error}: #{description}"
+        )
+    end
+  end
+
+  # Who the code or refresh token belonged to (codes are kept after use, so a replay or a late
+  # exchange still names the person).
+  defp token_subject(%{"grant_type" => "authorization_code", "code" => code})
+       when is_binary(code) do
+    case Repo.one(from c in Code, where: c.code_hash == ^hash(code), preload: :user) do
+      %Code{user: user, client_id: client_id, redirect_uri: uri} -> {user, client_id, uri}
+      nil -> {nil, nil, nil}
+    end
+  end
+
+  defp token_subject(%{"grant_type" => "refresh_token", "refresh_token" => token})
+       when is_binary(token) do
+    case Repo.one(
+           from t in Token,
+             join: g in assoc(t, :grant),
+             join: u in assoc(g, :user),
+             where: t.token_hash == ^hash(token) and t.kind == "refresh",
+             select: {u, g.client_id}
+         ) do
+      {user, client_id} -> {user, client_id, nil}
+      nil -> {nil, nil, nil}
+    end
+  end
+
+  defp token_subject(_), do: {nil, nil, nil}
+
+  @token_reasons %{
+    "unknown code" => "unknown_code",
+    "code already used" => "code_reused",
+    "code expired" => "expired_code",
+    "client_id mismatch" => "client_mismatch",
+    "redirect_uri mismatch" => "redirect_mismatch",
+    "PKCE verification failed" => "pkce_failed",
+    "unknown refresh token" => "unknown_refresh_token",
+    "grant revoked" => "grant_revoked",
+    "refresh token expired" => "refresh_expired"
+  }
+
+  defp token_reason("invalid_target", _), do: "invalid_resource"
+  defp token_reason("unsupported_grant_type", _), do: "unsupported_grant_type"
+
+  defp token_reason(_error, description) do
+    cond do
+      reason = @token_reasons[description] -> reason
+      description =~ "reuse" -> "refresh_reuse"
+      description =~ "Forgejo" -> "membership_lost"
+      true -> "invalid_grant"
+    end
+  end
 
   defp exchange_code(params) do
     now = DateTime.utc_now(:second)
@@ -502,6 +688,60 @@ defmodule Switchboard.OAuth do
     case Repo.get_by(Grant, id: grant_id, user_id: user.id) do
       %Grant{revoked_at: nil} = grant -> {:ok, revoke_grant(grant, "user_revoked")}
       _ -> {:error, :not_found}
+    end
+  end
+
+  @doc """
+  The person's active grants grouped by client name (a client that registered itself on every
+  login shows up once): `%{key:, name:, latest:, grants:}`, the most recently used first, and
+  `latest` the most recently used grant of the group.
+  """
+  def grant_groups(%User{} = user) do
+    user
+    |> list_grants()
+    |> Enum.group_by(&group_key/1)
+    |> Enum.map(fn {key, grants} ->
+      %{key: key, name: hd(grants).client_name, latest: hd(grants), grants: grants}
+    end)
+    |> Enum.sort_by(&sort_key(&1.latest), :desc)
+  end
+
+  defp group_key(%Grant{client_name: name}) when is_binary(name) and name != "",
+    do: "name:" <> name
+
+  defp group_key(%Grant{client_id: id}), do: "id:" <> id
+
+  defp sort_key(%Grant{last_used_at: used, inserted_at: at}),
+    do: DateTime.to_unix(used || at)
+
+  @doc """
+  Revokes a group's grants (`grant_groups/1`): all of them, or with `keep_latest: true` all but
+  the most recently used (the stale duplicates). Audited. Returns how many were revoked.
+  """
+  def revoke_grant_group(%Scope{user: %User{} = user} = scope, key, opts \\ []) do
+    case Enum.find(grant_groups(user), &(&1.key == key)) do
+      nil ->
+        {:error, :not_found}
+
+      group ->
+        targets = if opts[:keep_latest], do: tl(group.grants), else: group.grants
+        ids = Enum.map(targets, & &1.id)
+
+        {count, _} =
+          from(g in Grant, where: g.id in ^ids and g.user_id == ^user.id and is_nil(g.revoked_at))
+          |> Repo.update_all(
+            set: [revoked_at: DateTime.utc_now(:second), revoked_reason: "user_revoked"]
+          )
+
+        action = if opts[:keep_latest], do: "client.removed_stale", else: "client.revoked"
+
+        Audit.log_web(scope, action, %{
+          client_name: group.name,
+          client_ids: targets |> Enum.map(& &1.client_id) |> Enum.uniq(),
+          count: count
+        })
+
+        {:ok, count}
     end
   end
 
