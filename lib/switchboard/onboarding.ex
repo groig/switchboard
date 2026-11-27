@@ -91,6 +91,13 @@ defmodule Switchboard.Onboarding do
       done_by: ["task_status"]
     },
     %{
+      id: "batch",
+      group: :work,
+      text: gettext_noop("Read all my open tasks in one go and tell me where each one stands."),
+      needs: ["plane"],
+      done_by: ["plane_get_items"]
+    },
+    %{
       id: "image",
       group: :work,
       text: gettext_noop("Show me the screenshots in %{task}."),

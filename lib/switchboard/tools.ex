@@ -17,6 +17,7 @@ defmodule Switchboard.Tools do
     Switchboard.Tools.Release,
     Switchboard.Tools.PlaneSearch,
     Switchboard.Tools.PlaneGetItem,
+    Switchboard.Tools.PlaneGetItems,
     Switchboard.Tools.PlaneGetImage,
     Switchboard.Tools.PlaneMyItems,
     Switchboard.Tools.PrStatus,

@@ -266,7 +266,7 @@ defmodule Switchboard.OnboardingTest do
              accounts_linked: 4,
              accounts_total: 5,
              prompts_tried: 2,
-             prompts_total: 13
+             prompts_total: 14
            } = rows[ana.id]
   end
 end

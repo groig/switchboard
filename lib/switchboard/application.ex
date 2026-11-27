@@ -19,6 +19,7 @@ defmodule Switchboard.Application do
       Switchboard.RateLimit,
       Switchboard.Upstreams.Guard,
       Switchboard.Cache,
+      Switchboard.Plane.Budget,
       {Task.Supervisor, name: Switchboard.TaskSupervisor},
       {Oban, Application.fetch_env!(:switchboard, Oban)},
       {Switchboard.MCP.Server,

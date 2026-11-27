@@ -43,7 +43,7 @@ defmodule SwitchboardWeb.StartLiveTest do
     refute has_element?(view, "#prompt-pickup-copy")
     assert has_element?(view, "#prompt-ci[data-ready=true]")
     assert has_element?(view, "#prompt-ci-copy")
-    assert has_element?(view, "#tried-count", "0 of 13 tried")
+    assert has_element?(view, "#tried-count", "0 of 14 tried")
   end
 
   test "the connect commands use the public URL, per client tab", %{conn: conn} do
@@ -88,7 +88,7 @@ defmodule SwitchboardWeb.StartLiveTest do
     Audit.log_tool(claude(user), "workflow:next", %{}, outcome: "ok")
     Audit.log_tool(claude(user), "chat_inbox", %{}, outcome: "ok")
     assert has_element?(view, "#prompt-next[data-done=true]")
-    assert has_element?(view, "#tried-count", "2 of 13 tried")
+    assert has_element?(view, "#tried-count", "2 of 14 tried")
     refute done?(view, "step-prompts")
     assert done?(view, "step-commands")
 

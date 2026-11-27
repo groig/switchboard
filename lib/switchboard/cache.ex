@@ -44,6 +44,9 @@ defmodule Switchboard.Cache do
 
   def clear, do: :ets.delete_all_objects(@table)
 
+  @doc "Bindings of `:\"$1\"` in the keys that match an ETS match pattern (live or not)."
+  def keys(pattern), do: :ets.select(@table, [{{pattern, :_, :_}, [], [:"$1"]}])
+
   @doc "Deletes entries whose key matches an ETS match pattern (`{:plane_get, kid, :_, :_}`)."
   def delete_match(pattern), do: :ets.match_delete(@table, {pattern, :_, :_})
 

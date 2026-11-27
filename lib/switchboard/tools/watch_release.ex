@@ -65,11 +65,12 @@ defmodule Switchboard.Tools.WatchRelease do
     health? = args["health"] == true
 
     with true <-
-           repo =~ ~r/^[\w.\-]{1,80}$/ || {:error, "repo must be a release repo name, e.g. web"},
+           repo =~ ~r/^[\w.\-\/]{1,120}$/ ||
+             {:error, "repo must be a release repo name, e.g. web"},
          {:ok, hours} <- WatchSupport.hours(args),
          {:ok, username} <- WatchSupport.recipient(scope),
          {:ok, releases} <- Releases.list(limit: 200) |> feed_error(),
-         :ok <- known(releases, repo) do
+         {:ok, repo} <- known(releases, repo, scope) do
       WatchSupport.create(
         scope,
         %{
@@ -90,14 +91,20 @@ defmodule Switchboard.Tools.WatchRelease do
   defp feed_error({:error, reason}), do: {:error, problem(:releases, reason)}
   defp feed_error(ok), do: ok
 
-  defp known(releases, repo) do
-    repos = releases |> Enum.map(& &1["repo"]) |> Enum.uniq()
+  defp known(releases, repo, scope) do
+    case Releases.resolve_repo(releases, repo) do
+      {:ok, repo} ->
+        {:ok, repo}
 
-    if repo in repos,
-      do: :ok,
-      else:
+      {:ambiguous, repos} ->
         {:error,
-         "No release of #{repo} in the last 90 days. Repos with releases: " <>
-           Enum.join(Enum.sort(repos), ", ")}
+         "\"#{cell(repo)}\" matches several repos with releases: " <>
+           Enum.map_join(repos, ", ", &"`#{&1}`") <> ". Call again with one of them."}
+
+      :unknown ->
+        {:error,
+         "No release of `#{cell(repo)}` in the last 90 days.\n\n" <>
+           Switchboard.Tools.ReleaseRender.feed_hint(releases, scope)}
+    end
   end
 end

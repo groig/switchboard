@@ -41,6 +41,32 @@ defmodule Switchboard.Tools.ReleaseRender do
     |> String.trim_trailing()
   end
 
+  @doc """
+  What to say when a repo or release isn't in the feed: the repos that do have releases in the
+  window with their latest release, and why a repo can be missing.
+  """
+  def feed_hint(releases, scope) do
+    rows =
+      releases
+      |> Switchboard.Releases.repos()
+      |> Enum.take(15)
+      |> Enum.map(fn %{repo: repo, latest: r} ->
+        [cell(repo), "`#{cell(r["name"])}`", status(r), time(r["startedAt"], scope)]
+      end)
+
+    known =
+      if rows == [],
+        do: "The release feed has no releases at all in the last 90 days.",
+        else:
+          "Repos with releases in the last 90 days:\n\n" <>
+            table(["Repo", "Latest release", "Status", "Started"], rows)
+
+    known <>
+      "\n\nA repo only appears here once its deploy pipeline publishes releases to the " <>
+      "release feed (the release cards in chat). A repo missing from this list is most likely " <>
+      "not set up for that: it doesn't mean nothing shipped."
+  end
+
   @doc "One-line status with an icon."
   def status(%{"status" => "success"}), do: "🚀 success"
   def status(%{"status" => "deploying"}), do: "⏳ deploying"

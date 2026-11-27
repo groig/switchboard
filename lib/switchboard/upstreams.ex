@@ -298,6 +298,10 @@ defmodule Switchboard.Upstreams do
       :rate_limited ->
         "#{name} rate limit reached. Try again in a minute."
 
+      {:rate_limited, seconds} when system == :plane ->
+        "Plane refused the request: your Plane key's rate limit is used up (about 60 requests " <>
+          "a minute, shared with your other tools). Try again in about #{wait_s(seconds)}."
+
       {:rate_limited, seconds} when system == :github ->
         "GitHub's rate limit for your account is used up (it is shared with your other tools " <>
           "that use GitHub). It resets in about #{wait(seconds)}."
@@ -344,6 +348,9 @@ defmodule Switchboard.Upstreams do
         "#{name} is unreachable; this part is missing."
     end
   end
+
+  defp wait_s(seconds) when seconds < 60, do: "#{seconds} s"
+  defp wait_s(seconds), do: wait(seconds)
 
   defp wait(seconds) when seconds < 90, do: "a minute"
   defp wait(seconds), do: "#{div(seconds + 59, 60)} minutes"

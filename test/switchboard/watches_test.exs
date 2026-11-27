@@ -473,7 +473,7 @@ defmodule Switchboard.WatchesTest do
       assert {:ok, msg} = Tools.run(scope, "watch_release", %{"repo" => "app", "health" => true})
       assert msg =~ "again with its health"
       assert {:error, msg} = Tools.run(scope, "watch_release", %{"repo" => "nope"})
-      assert msg =~ "No release of nope"
+      assert msg =~ "No release of `nope`"
 
       # The next release succeeded and is still in its 24 h window.
       stub(%{

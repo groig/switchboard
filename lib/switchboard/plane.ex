@@ -14,9 +14,11 @@ defmodule Switchboard.Plane do
   """
 
   alias Switchboard.{Cache, Upstreams}
+  alias Switchboard.Plane.Budget
 
   @cache_ttl :timer.minutes(10)
   @read_ttl :timer.seconds(45)
+  @item_ttl :timer.seconds(60)
   @open_groups ~w(backlog unstarted started)
   @item_fields "id,name,sequence_id,state,assignees,priority,target_date,start_date,updated_at,project,completed_at"
 
@@ -26,39 +28,79 @@ defmodule Switchboard.Plane do
   def browse_url(identifier),
     do: "#{Upstreams.base_url(:plane)}/#{workspace()}/browse/#{identifier}/"
 
-  # Every GET is cached per key for @read_ttl: people's keys are shared with their other tools
-  # (about 60 requests a minute), so repeated my_work calls must not burn the budget. Errors are
-  # not cached. Writes drop the key's cached reads.
-  defp get(%{"token" => key} = cred, path, params \\ []) do
-    Cache.fetch({:plane_get, key_id(cred), path, params}, @read_ttl, fn ->
-      Upstreams.request(:plane,
-        url: "/api/v1" <> path,
-        params: params,
-        headers: [{"x-api-key", key}]
-      )
-      |> Upstreams.body()
+  # Every GET is cached per key for @read_ttl (one work item's reads for @item_ttl): people's
+  # keys are shared with their other tools (about 60 requests a minute), so repeated my_work
+  # calls and re-reads of a task must not burn the budget. Errors are not cached. Uncached
+  # requests go through Plane.Budget (counted, paced for batch reads, refused while a 429 is in
+  # force). A write drops the written task's cached reads.
+  defp get(cred, path, params \\ [], ttl \\ @read_ttl)
+
+  defp get(%{"token" => key} = cred, path, params, ttl) do
+    kid = key_id(cred)
+
+    Cache.fetch({:plane_get, kid, path, params}, ttl, fn ->
+      with :ok <- Budget.admit(kid) do
+        result =
+          Upstreams.request(:plane,
+            url: "/api/v1" <> path,
+            params: params,
+            headers: [{"x-api-key", key}]
+          )
+
+        Budget.record(kid, result)
+        rate_limited(result, kid)
+      end
     end)
   end
 
-  defp write(%{"token" => key} = cred, method, path, body) do
-    result =
-      Upstreams.request(:plane,
-        method: method,
-        url: "/api/v1" <> path,
-        json: body,
-        headers: [{"x-api-key", key}]
-      )
-      |> Upstreams.body()
+  # A 429 says when to retry (Budget recorded it): {:rate_limited, seconds}.
+  defp rate_limited({:ok, %Req.Response{status: 429}}, kid),
+    do: {:error, {:rate_limited, Budget.retry_in(kid)}}
 
-    forget(cred)
-    result
+  defp rate_limited(result, _kid), do: Upstreams.body(result)
+
+  defp write(%{"token" => key} = cred, method, path, body) do
+    kid = key_id(cred)
+
+    with :ok <- Budget.admit(kid) do
+      result =
+        Upstreams.request(:plane,
+          method: method,
+          url: "/api/v1" <> path,
+          json: body,
+          headers: [{"x-api-key", key}]
+        )
+
+      Budget.record(kid, result)
+      rate_limited(result, kid)
+    end
   end
 
-  @doc "Drops every cached read for a key (after a write)."
+  @doc "Drops every cached read for a key."
   def forget(cred) do
     kid = key_id(cred)
     Cache.delete_match({:plane_get, kid, :_, :_})
     Cache.delete_match({:plane_my_items, :_, kid})
+  end
+
+  @doc """
+  Drops a work item's cached reads after a write: the item (by identifier), its comments and
+  links, its project's item lists and `my_items`. Other tasks stay cached.
+  """
+  def forget_item(cred, identifier, item \\ nil) do
+    kid = key_id(cred)
+    item_path = ws_path("/work-items/#{String.upcase(identifier)}/")
+    item_id = item && item["id"]
+    project = item && item["project"]
+
+    for path <- Cache.keys({:plane_get, kid, :"$1", :_}),
+        path == item_path or
+          (is_binary(item_id) and String.contains?(path, "/work-items/#{item_id}/")) or
+          (is_binary(project) and path == ws_path("/projects/#{project}/work-items/")),
+        do: Cache.delete_match({:plane_get, kid, path, :_})
+
+    Cache.delete_match({:plane_my_items, :_, kid})
+    :ok
   end
 
   defp ws_path(rest), do: "/workspaces/#{workspace()}" <> rest
@@ -78,7 +120,8 @@ defmodule Switchboard.Plane do
   end
 
   # Different keys (after relinking) must not share cache entries.
-  defp key_id(%{"token" => key}), do: :crypto.hash(:sha256, key) |> binary_part(0, 8)
+  @doc false
+  def key_id(%{"token" => key}), do: :crypto.hash(:sha256, key) |> binary_part(0, 8)
 
   @doc """
   Open work items assigned to the key's user in the projects they are a member of. Returns
@@ -223,7 +266,12 @@ defmodule Switchboard.Plane do
 
   @doc "A work item by its identifier (`PROJ-123`), with state, assignees and labels."
   def item(cred, identifier) do
-    get(cred, ws_path("/work-items/#{identifier}/"), expand: "state,assignees,labels")
+    get(
+      cred,
+      ws_path("/work-items/#{identifier}/"),
+      [expand: "state,assignees,labels"],
+      @item_ttl
+    )
   end
 
   def comments(cred, item),
@@ -233,7 +281,7 @@ defmodule Switchboard.Plane do
     do: list(cred, "/projects/#{item["project"]}/work-items/#{item["id"]}/links/")
 
   defp list(cred, path) do
-    with {:ok, body} <- get(cred, ws_path(path), per_page: 50) do
+    with {:ok, body} <- get(cred, ws_path(path), [per_page: 50], @item_ttl) do
       {:ok, if(is_list(body), do: body, else: body["results"] || [])}
     end
   end
@@ -321,27 +369,31 @@ defmodule Switchboard.Plane do
         "<p>" <> String.replace(escaped, "\n", "<br>") <> "</p>"
       end)
 
-    write(
-      cred,
-      :post,
-      ws_path("/projects/#{item["project"]}/work-items/#{item["id"]}/comments/"),
-      %{
-        "comment_html" => html
-      }
-    )
+    cred
+    |> write(:post, ws_path("/projects/#{item["project"]}/work-items/#{item["id"]}/comments/"), %{
+      "comment_html" => html
+    })
+    |> tap(fn _ -> forget_item(cred, identifier(item), item) end)
   end
 
   @doc "Moves a work item to another state (by state id)."
   def set_state(cred, item, state_id) do
-    write(cred, :patch, ws_path("/projects/#{item["project"]}/work-items/#{item["id"]}/"), %{
+    cred
+    |> write(:patch, ws_path("/projects/#{item["project"]}/work-items/#{item["id"]}/"), %{
       "state" => state_id
     })
+    |> tap(fn _ -> forget_item(cred, identifier(item), item) end)
   end
+
+  # fresh_item/2 stores the identifier it was asked for.
+  defp identifier(item), do: item["_identifier"] || ""
 
   @doc "Reads a work item bypassing the cache (before a write)."
   def fresh_item(cred, identifier) do
-    forget(cred)
-    item(cred, identifier)
+    forget_item(cred, identifier)
+
+    with {:ok, item} <- item(cred, identifier),
+         do: {:ok, Map.put(item, "_identifier", String.upcase(identifier))}
   end
 
   @doc "Whether a string looks like a work item identifier (`PROJ-123`)."
